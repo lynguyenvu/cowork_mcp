@@ -1,0 +1,50 @@
+name: beds24-mcp
+image: lynguyenvu/beds24-mcp
+type: server
+meta:
+  category: hospitality
+  tags:
+    - pms
+    - booking
+    - property-management
+    - hotel
+    - hospitality
+about:
+  title: Beds24 Property Management MCP
+  description: Tools for managing Beds24 property management system - bookings, properties, rooms, availability, and pricing
+  icon: https://www.beds24.com/favicon.ico
+source:
+  project: https://github.com/lynguyenvu/beds24-mcp-server
+  commit: main
+config:
+  description: Configure your Beds24 API connection
+  secrets:
+    - name: beds24-mcp.api_token
+      env: BEDS24_API_TOKEN
+      example: "<your_api_token>"
+  env:
+    - name: BEDS24_API_BASE_URL
+      example: "https://api.beds24.com/v2"
+      value: "{{beds24-mcp.api_base_url}}"
+    - name: MCP_HOST
+      example: "0.0.0.0"
+      value: "{{beds24-mcp.mcp_host}}"
+    - name: MCP_PORT
+      example: "8001"
+      value: "{{beds24-mcp.mcp_port}}"
+  parameters:
+    type: object
+    properties:
+      api_base_url:
+        type: string
+        default: "https://api.beds24.com/v2"
+      mcp_host:
+        type: string
+        default: "0.0.0.0"
+      mcp_port:
+        type: string
+        default: "8001"
+    required:
+      - api_base_url
+      - mcp_host
+      - mcp_port

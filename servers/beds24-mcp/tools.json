@@ -1,0 +1,140 @@
+[
+  {
+    "name": "beds24_list_bookings",
+    "description": "List bookings from Beds24 with optional filters for property, status, and date ranges. Supports pagination.",
+    "arguments": [
+      {"name": "property_id", "type": "string", "desc": "Filter by property ID"},
+      {"name": "status", "type": "string", "desc": "Filter by booking status (e.g., 'confirmed', 'pending')"},
+      {"name": "check_in_after", "type": "string", "desc": "Filter bookings with check-in after this date (YYYY-MM-DD)"},
+      {"name": "check_in_before", "type": "string", "desc": "Filter bookings with check-in before this date (YYYY-MM-DD)"},
+      {"name": "limit", "type": "number", "desc": "Maximum results to return (1-100, default 20)"},
+      {"name": "offset", "type": "number", "desc": "Pagination offset (default 0)"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_get_booking",
+    "description": "Get detailed information about a specific booking including guest info, room assignment, and pricing.",
+    "arguments": [
+      {"name": "booking_id", "type": "string", "desc": "The unique booking ID"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_create_booking",
+    "description": "Create a new booking with guest information, dates, and preferences.",
+    "arguments": [
+      {"name": "property_id", "type": "string", "desc": "Property ID for the booking"},
+      {"name": "room_id", "type": "string", "desc": "Specific room ID (optional)"},
+      {"name": "check_in", "type": "string", "desc": "Check-in date (YYYY-MM-DD)"},
+      {"name": "check_out", "type": "string", "desc": "Check-out date (YYYY-MM-DD)"},
+      {"name": "guest_name", "type": "string", "desc": "Guest's full name"},
+      {"name": "guest_email", "type": "string", "desc": "Guest's email address"},
+      {"name": "guest_phone", "type": "string", "desc": "Guest's phone number (optional)"},
+      {"name": "number_of_guests", "type": "number", "desc": "Number of guests (default 1)"},
+      {"name": "special_requests", "type": "string", "desc": "Special requests or notes"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_update_booking",
+    "description": "Update an existing booking's details such as guest info, dates, or status.",
+    "arguments": [
+      {"name": "booking_id", "type": "string", "desc": "The booking ID to update"},
+      {"name": "guest_name", "type": "string", "desc": "Updated guest name"},
+      {"name": "guest_email", "type": "string", "desc": "Updated guest email"},
+      {"name": "guest_phone", "type": "string", "desc": "Updated guest phone"},
+      {"name": "number_of_guests", "type": "number", "desc": "Updated number of guests"},
+      {"name": "check_in", "type": "string", "desc": "Updated check-in date"},
+      {"name": "check_out", "type": "string", "desc": "Updated check-out date"},
+      {"name": "special_requests", "type": "string", "desc": "Updated special requests"},
+      {"name": "status", "type": "string", "desc": "Updated booking status"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_cancel_booking",
+    "description": "Cancel an existing booking and optionally record the cancellation reason.",
+    "arguments": [
+      {"name": "booking_id", "type": "string", "desc": "The booking ID to cancel"},
+      {"name": "cancellation_reason", "type": "string", "desc": "Reason for cancellation"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_list_properties",
+    "description": "List all properties managed in Beds24 with basic information. Supports pagination.",
+    "arguments": [
+      {"name": "limit", "type": "number", "desc": "Maximum results to return (1-100, default 20)"},
+      {"name": "offset", "type": "number", "desc": "Pagination offset (default 0)"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_get_property",
+    "description": "Get detailed information about a specific property including address, contact, and amenities.",
+    "arguments": [
+      {"name": "property_id", "type": "string", "desc": "The property ID"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_list_property_rooms",
+    "description": "List all rooms for a specific property with details on types, capacities, and amenities.",
+    "arguments": [
+      {"name": "property_id", "type": "string", "desc": "The property ID to get rooms for"},
+      {"name": "room_type", "type": "string", "desc": "Filter by specific room type"},
+      {"name": "limit", "type": "number", "desc": "Maximum results to return (1-100, default 50)"},
+      {"name": "offset", "type": "number", "desc": "Pagination offset (default 0)"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_check_availability",
+    "description": "Check room availability for specific dates and return available room options with pricing.",
+    "arguments": [
+      {"name": "property_id", "type": "string", "desc": "The property ID to check"},
+      {"name": "check_in", "type": "string", "desc": "Check-in date (YYYY-MM-DD)"},
+      {"name": "check_out", "type": "string", "desc": "Check-out date (YYYY-MM-DD)"},
+      {"name": "room_type", "type": "string", "desc": "Specific room type to check (optional)"},
+      {"name": "number_of_guests", "type": "number", "desc": "Number of guests (default 1)"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_get_calendar",
+    "description": "Get calendar values for rooms over a date range including prices, availability, and restrictions.",
+    "arguments": [
+      {"name": "property_id", "type": "string", "desc": "The property ID"},
+      {"name": "room_id", "type": "string", "desc": "Specific room ID (optional)"},
+      {"name": "start_date", "type": "string", "desc": "Start date for calendar (YYYY-MM-DD)"},
+      {"name": "end_date", "type": "string", "desc": "End date for calendar (YYYY-MM-DD)"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_update_calendar",
+    "description": "Update calendar values for a specific date including price, availability, and stay restrictions.",
+    "arguments": [
+      {"name": "property_id", "type": "string", "desc": "The property ID"},
+      {"name": "room_id", "type": "string", "desc": "Specific room ID (optional)"},
+      {"name": "date", "type": "string", "desc": "Date to update (YYYY-MM-DD)"},
+      {"name": "price", "type": "number", "desc": "Updated price for the date"},
+      {"name": "availability", "type": "boolean", "desc": "Availability status (true/false)"},
+      {"name": "minimum_stay", "type": "number", "desc": "Minimum stay requirement in nights"},
+      {"name": "maximum_stay", "type": "number", "desc": "Maximum stay limit in nights"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_get_pricing_offers",
+    "description": "Get pricing offers and special promotions for a date range.",
+    "arguments": [
+      {"name": "property_id", "type": "string", "desc": "The property ID"},
+      {"name": "check_in", "type": "string", "desc": "Check-in date (YYYY-MM-DD)"},
+      {"name": "check_out", "type": "string", "desc": "Check-out date (YYYY-MM-DD)"},
+      {"name": "number_of_guests", "type": "number", "desc": "Number of guests (default 1)"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  }
+]

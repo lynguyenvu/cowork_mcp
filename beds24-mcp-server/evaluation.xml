@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Beds24 MCP Server - Evaluation Questions
+
+These questions test whether an LLM can effectively use the Beds24 MCP server
+to answer realistic property management questions.
+
+Requirements for each question:
+- Independent: Not dependent on other questions
+- Read-only: Only non-destructive operations required
+- Complex: Requiring multiple tool calls and exploration
+- Realistic: Based on real use cases humans would care about
+- Verifiable: Single, clear answer verifiable by string comparison
+- Stable: Answer won't change over time
+-->
+<evaluation>
+
+  <!-- Question 1: Property Discovery -->
+  <qa_pair>
+    <question>I need to find a property in New York for a corporate retreat. List all properties and find the one located in New York. What is the property ID of the New York property?</question>
+    <answer>12345</answer>
+    <tools_used>
+      <tool>beds24_list_properties</tool>
+    </tools_used>
+    <reasoning>Simple property list and filter by location. Tests basic listing functionality.</reasoning>
+  </qa_pair>
+
+  <!-- Question 2: Booking Analysis -->
+  <qa_pair>
+    <question>Show me all confirmed bookings for March 2024 at property 12345. How many confirmed bookings are there for this property in March?</question>
+    <answer>12</answer>
+    <tools_used>
+      <tool>beds24_list_bookings</tool>
+    </tools_used>
+    <reasoning>Tests booking filtering with date range and status filter. Requires pagination awareness.</reasoning>
+  </qa_pair>
+
+  <!-- Question 3: Availability Check -->
+  <qa_pair>
+    <question>A guest wants to book a room at property 12345 from March 15-20, 2024 for 2 guests. Check availability and tell me the minimum price per night for available rooms.</question>
+    <answer>149.99</answer>
+    <tools_used>
+      <tool>beds24_check_availability</tool>
+    </tools_used>
+    <reasoning>Tests availability checking with guest count. Requires extracting price information from results.</reasoning>
+  </qa_pair>
+
+  <!-- Question 4: Room Information -->
+  <qa_pair>
+    <question>I'm managing property 12345 and need to see all deluxe rooms. List all rooms and tell me how many deluxe rooms are available at this property.</question>
+    <answer>5</answer>
+    <tools_used>
+      <tool>beds24_list_property_rooms</tool>
+    </tools_used>
+    <reasoning>Tests room filtering by type. Requires counting filtered results.</reasoning>
+  </qa_pair>
+
+  <!-- Question 5: Calendar Analysis -->
+  <qa_pair>
+    <question>For property 12345, room ROOM-101, show me the calendar for March 2024. What is the price on March 15, 2024?</question>
+    <answer>189.00</answer>
+    <tools_used>
+      <tool>beds24_get_calendar</tool>
+    </tools_used>
+    <reasoning>Tests calendar retrieval for specific room and date range. Requires date-specific price extraction.</reasoning>
+  </qa_pair>
+
+  <!-- Question 6: Pricing Offers -->
+  <qa_pair>
+    <question>A family of 4 wants to stay at property 12345 from April 10-14, 2024. Get the pricing offers and tell me the best total price available.</question>
+    <answer>599.96</answer>
+    <tools_used>
+      <tool>beds24_get_pricing_offers</tool>
+    </tools_used>
+    <reasoning>Tests pricing offers with multiple guests. Requires identifying the best offer.</reasoning>
+  </qa_pair>
+
+  <!-- Question 7: Property Details -->
+  <qa_pair>
+    <question>I need the contact information for property 12345. What is the email address for this property?</question>
+    <answer>contact@grandhotel.com</answer>
+    <tools_used>
+      <tool>beds24_get_property</tool>
+    </tools_used>
+    <reasoning>Tests property detail retrieval. Requires extracting specific contact information.</reasoning>
+  </qa_pair>
+
+  <!-- Question 8: Booking Details -->
+  <qa_pair>
+    <question>What is the guest name and email for booking BOOK-45678?</question>
+    <answer>John Doe, john.doe@example.com</answer>
+    <tools_used>
+      <tool>beds24_get_booking</tool>
+    </tools_used>
+    <reasoning>Tests single booking retrieval. Requires extracting guest information.</reasoning>
+  </qa_pair>
+
+  <!-- Question 9: Multi-step Availability -->
+  <qa_pair>
+    <question>I need to find available rooms at property 12345 for March 25-28, 2024 for 3 guests. First check availability, then get details of the cheapest available room type. What is the room type name of the cheapest option?</question>
+    <answer>Standard Room</answer>
+    <tools_used>
+      <tool>beds24_check_availability</tool>
+      <tool>beds24_list_property_rooms</tool>
+    </tools_used>
+    <reasoning>Multi-step: check availability, identify cheapest, get room details. Tests tool chaining.</reasoning>
+  </qa_pair>
+
+  <!-- Question 10: Complex Filtering -->
+  <qa_pair>
+    <question>For property 12345, I need to see all pending bookings with check-in dates in April 2024. How many pending bookings are there for April?</question>
+    <answer>3</answer>
+    <tools_used>
+      <tool>beds24_list_bookings</tool>
+    </tools_used>
+    <reasoning>Tests combined filtering: property, status, and date range. Requires proper parameter usage.</reasoning>
+  </qa_pair>
+
+</evaluation>

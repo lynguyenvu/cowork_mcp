@@ -1,52 +1,73 @@
-# Pancake MCP Server
+# Cowork MCP Servers
 
-MCP (Model Context Protocol) server kết nối Claude AI với **Pancake POS** — nền tảng quản lý bán hàng đa kênh phổ biến tại Việt Nam.
+MCP (Model Context Protocol) servers kết nối Claude AI với các nền tảng quản lý kinh doanh.
+
+## MCP Servers
+
+### 1. Pancake MCP Server
+**Pancake POS** — Nền tảng quản lý bán hàng đa kênh phổ biến tại Việt Nam.
+
+- **32 MCP tools** cho Pancake API
+- **Modules**: Shop, Đơn hàng, Kho hàng, Vận chuyển, Hội thoại, File đính kèm, Địa lý VN
+- [Chi tiết](./pancake-mcp-server/README.md)
+
+### 2. Beds24 MCP Server
+**Beds24** — Hệ thống quản lý khách sạn và đặt phòng (Property Management System).
+
+- **12 MCP tools** cho Beds24 API v2
+- **Modules**: Booking, Property, Inventory & Pricing
+- [Chi tiết](./beds24-mcp-server/README.md)
 
 ## Cấu trúc Project
 
 ```
 cowork_mcp/
-├── pancake-mcp-server/      # MCP server chính (Python/FastMCP)
-│   ├── src/pancake_mcp/     # Source code
-│   ├── tests/               # Unit tests
-│   ├── docs/                # Documentation
-│   ├── Dockerfile           # Docker image
-│   └── docker-compose.yml   # Docker compose config
-├── servers/pancake-mcp/     # Docker MCP Registry submission
-│   ├── server.yaml          # Server metadata
-│   └── tools.json           # Tools definition
+├── pancake-mcp-server/      # Pancake POS MCP server
+├── beds24-mcp-server/       # Beds24 PMS MCP server
+├── servers/                 # MCP Registry submissions
+│   ├── pancake-mcp/
+│   └── beds24-mcp/
 ├── docs/                    # Project docs
-├── plans/                   # Development plans
-└── Taskfile.yaml            # Task runner commands
+└── plans/                   # Development plans
 ```
-
-## Tính năng chính
-
-- **32 MCP tools** cho Pancake API
-- **2 chế độ kết nối**: stdio (Claude Desktop) & HTTP (Claude.ai)
-- **Modules**:
-  - Shop & Payment methods
-  - Đơn hàng (CRUD, tags, promotions)
-  - Kho hàng (warehouses, inventory history)
-  - Vận chuyển (shipment, tracking, returns)
-  - Hội thoại/Inbox (Facebook, Zalo...)
-  - File đính kèm (download, preview, OCR)
-  - Địa lý Việt Nam (provinces, districts, communes)
 
 ## Quick Start
 
+### Pancake MCP Server
+
 ```bash
-# Clone
-git clone https://github.com/lynguyenvu/pancake-mcp-server.git
 cd pancake-mcp-server
-
-# Docker (khuyên dùng)
 docker compose up -d
-
-# Hoặc cài thủ công
+# hoặc
 pip install -e .
 PANCAKE_API_KEY=your_key pancake-mcp-stdio
 ```
+
+### Beds24 MCP Server
+
+```bash
+cd beds24-mcp-server
+docker compose up -d
+# hoặc
+pip install -r requirements.txt
+BEDS24_API_TOKEN=your_token python server.py --transport streamable-http --port 8001
+```
+
+## Kết nối với Open WebUI
+
+### Pancake MCP
+
+1. Copy config: `cp pancake-mcp-server/config-openwebui.json /path/to/open-webui/mcp/config.json`
+2. Thêm API key vào config
+3. Restart Open WebUI
+
+### Beds24 MCP
+
+1. Copy config: `cp beds24-mcp-server/config-openwebui.json /path/to/open-webui/mcp/config.json`
+2. Thêm API token vào config
+3. Restart Open WebUI
+
+Xem chi tiết: [SETUP_OPENWEBUI.md](./beds24-mcp-server/SETUP_OPENWEBUI.md)
 
 ## Tech Stack
 
@@ -56,23 +77,7 @@ PANCAKE_API_KEY=your_key pancake-mcp-stdio
 | FastMCP | MCP framework |
 | httpx | Async HTTP client |
 | uvicorn | ASGI server |
-| Pillow/pytesseract | Image processing & OCR |
-
-## Tài liệu
-
-- [README chi tiết](./pancake-mcp-server/README.md) - Hướng dẫn cài đặt đầy đủ
-- [User Guide](./pancake-mcp-server/docs/user-guide.md) - Hướng dẫn sử dụng
-- [CLAUDE.md](./pancake-mcp-server/CLAUDE.md) - Context cho AI assistants
-
-## Task Commands
-
-```bash
-task build           # Build Docker image
-task test            # Test server locally
-task validate-tools  # Validate tools.json
-task package         # Create submission package
-task submit-check    # Check submission requirements
-```
+| Pydantic | Data validation |
 
 ## License
 

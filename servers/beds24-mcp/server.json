@@ -1,0 +1,42 @@
+{
+  "name": "beds24-mcp",
+  "description": "Beds24 Property Management MCP Server - Booking, Property, and Inventory Management",
+  "version": "1.0.0",
+  "transport": {
+    "type": "stdio",
+    "command": "python3",
+    "args": ["/cowork_mcp/beds24-mcp-server/server.py"],
+    "env": {
+      "BEDS24_API_TOKEN": "${BEDS24_API_TOKEN}",
+      "BEDS24_API_BASE_URL": "https://api.beds24.com/v2"
+    }
+  },
+  "http_transport": {
+    "type": "http",
+    "url": "http://localhost:8001",
+    "env": {
+      "BEDS24_API_TOKEN": "${BEDS24_API_TOKEN}",
+      "BEDS24_API_BASE_URL": "https://api.beds24.com/v2"
+    }
+  },
+  "tools_file": "/cowork_mcp/servers/beds24-mcp/tools.json",
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  },
+  "tool_count": 12,
+  "categories": [
+    "booking-management",
+    "property-management",
+    "inventory-pricing"
+  ],
+  "required_env_vars": [
+    "BEDS24_API_TOKEN"
+  ],
+  "optional_env_vars": [
+    "BEDS24_API_BASE_URL"
+  ],
+  "documentation": "/cowork_mcp/beds24-mcp-server/README.md",
+  "setup_guide": "/cowork_mcp/beds24-mcp-server/SETUP_OPENWEBUI.md"
+}

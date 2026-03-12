@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Bed24 MCP Server - systemd service file for HTTP transport
+# Copy to: /etc/systemd/system/beds24-mcp.service
+# Then run: sudo systemctl enable --now beds24-mcp
+
+[Unit]
+Description=Beds24 MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/cowork_mcp/beds24-mcp-server
+Environment="BEDS24_API_TOKEN=your_api_token_here"
+Environment="BEDS24_API_BASE_URL=https://api.beds24.com/v2"
+ExecStart=/usr/bin/python3 server.py --transport streamable-http --port 8001
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
