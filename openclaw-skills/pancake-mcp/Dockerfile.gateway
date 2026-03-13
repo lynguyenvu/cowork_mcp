@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN pip install --no-cache-dir fastapi uvicorn httpx
+
+# Copy gateway script
+COPY pancake-mcp-gateway.py .
+
+# Expose port
+EXPOSE 8766
+
+# Run gateway
+CMD ["python", "pancake-mcp-gateway.py", "--port", "8766"]

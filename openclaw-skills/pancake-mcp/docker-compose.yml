@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  pancake-mcp-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: pancake-mcp-gateway
+    ports:
+      - "8766:8766"
+    environment:
+      - GATEWAY_PORT=8766
+      - PANCAKE_MCP_URL=http://pancake-mcp:8000
+      - PANCAKE_API_KEY=${PANCAKE_API_KEY}
+    depends_on:
+      - pancake-mcp
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+  pancake-mcp:
+    build:
+      context: /cowork_mcp/pancake-mcp-server
+      dockerfile: Dockerfile
+    container_name: pancake-mcp-server
+    ports:
+      - "8765:8765"
+    environment:
+      - PANCAKE_API_KEY=${PANCAKE_API_KEY}
+      - PANCAKE_ACCESS_TOKEN=${PANCAKE_ACCESS_TOKEN}
+      - TRANSPORT=streamable-http
+      - PORT=8765
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+networks:
+  openclaw-network:
+    driver: bridge
