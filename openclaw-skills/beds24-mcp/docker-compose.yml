@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  beds24-mcp-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: beds24-mcp-gateway
+    ports:
+      - "8767:8767"
+    environment:
+      - GATEWAY_PORT=8767
+      - BEDS24_MCP_URL=http://beds24-mcp:8001
+      - BEDS24_API_TOKEN=${BEDS24_API_TOKEN}
+    depends_on:
+      - beds24-mcp
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+  beds24-mcp:
+    build:
+      context: /cowork_mcp/beds24-mcp-server
+      dockerfile: Dockerfile
+    container_name: beds24-mcp-server
+    ports:
+      - "8001:8001"
+    environment:
+      - BEDS24_API_TOKEN=${BEDS24_API_TOKEN}
+      - BEDS24_API_BASE_URL=https://api.beds24.com/v2
+      - TRANSPORT=streamable-http
+      - PORT=8001
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+networks:
+  openclaw-network:
+    driver: bridge
