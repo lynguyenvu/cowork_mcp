@@ -14,15 +14,23 @@ Query and manage Beds24 property management system for hospitality businesses. T
 
 ## Configuration
 
-Requires `BEDS24_API_TOKEN` environment variable.
+First-time setup: Generate an invite code from Beds24 and run beds24_setup_from_invite_code.
+Save the returned refresh_token to your .env file.
 
 ```json
 {
   "beds24-mcp": {
-    "apiToken": "your_beds24_api_token"
+    "refreshToken": "your_refresh_token_here"
   }
 }
 ```
+
+**One-time setup flow:**
+1. Generate invite code: https://beds24.com/control3.php?pagetype=apiv2
+2. Call beds24_setup_from_invite_code with the code
+3. Save the refresh_token to BEDS24_REFRESH_TOKEN env var
+
+Access tokens are automatically obtained and refreshed from the refresh token.
 
 ## Tools
 

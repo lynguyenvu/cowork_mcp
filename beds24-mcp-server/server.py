@@ -25,7 +25,7 @@ from datetime import datetime
 from enum import Enum
 import httpx
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from mcp.server.fastmcp import FastMCP, Context
+from fastmcp import FastMCP, Context
 
 # Initialize MCP server
 mcp = FastMCP("beds24_mcp")
@@ -35,8 +35,61 @@ mcp = FastMCP("beds24_mcp")
 # ==============================================================================
 
 API_BASE_URL = os.getenv("BEDS24_API_BASE_URL", "https://api.beds24.com/v2")
-API_TOKEN = os.getenv("BEDS24_API_TOKEN")
+REFRESH_TOKEN = os.getenv("BEDS24_REFRESH_TOKEN", "")
 CHARACTER_LIMIT = 25000  # Maximum response size in characters
+
+# ==============================================================================
+# Token Manager - Auto-refresh access token from refresh token
+# ==============================================================================
+
+class TokenManager:
+    """Manages access token with auto-refresh from refresh token."""
+
+    def __init__(self, refresh_token: str):
+        self._refresh_token = refresh_token
+        self._access_token: Optional[str] = None
+        self._expires_at: float = 0  # Unix timestamp
+
+    async def get_access_token(self) -> str:
+        """Get valid access token, refreshing if needed."""
+        import time
+
+        # Return cached token if still valid (with 5 min buffer)
+        if self._access_token and time.time() < (self._expires_at - 300):
+            return self._access_token
+
+        # Need to refresh
+        if not self._refresh_token:
+            raise ValueError(
+                "BEDS24_REFRESH_TOKEN not set. "
+                "Run beds24_setup_refresh_token with an invite code first."
+            )
+
+        # Get new access token from refresh token
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{API_BASE_URL}/authentication/token",
+                headers={"refreshToken": self._refresh_token},
+                timeout=30.0
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        self._access_token = data.get("token")
+        expires_in = data.get("expiresIn", 3600)
+        self._expires_at = time.time() + expires_in
+
+        return self._access_token
+
+    def update_refresh_token(self, new_refresh_token: str):
+        """Update refresh token (from invite code setup)."""
+        self._refresh_token = new_refresh_token
+        self._access_token = None  # Force refresh on next request
+        self._expires_at = 0
+
+
+# Global token manager instance
+_token_manager = TokenManager(REFRESH_TOKEN)
 
 # ==============================================================================
 # Response Format Enum
@@ -87,6 +140,8 @@ async def _make_api_request(
     """
     Reusable function for all API calls with proper error handling.
 
+    Automatically gets/refreshes access token from refresh token.
+
     Args:
         endpoint: API endpoint path (e.g., "bookings", "properties")
         method: HTTP method (GET, POST, PUT, DELETE, PATCH)
@@ -101,14 +156,11 @@ async def _make_api_request(
         httpx.HTTPStatusError: For HTTP error responses
         httpx.TimeoutException: For request timeouts
     """
-    if not API_TOKEN:
-        raise ValueError(
-            "BEDS24_API_TOKEN environment variable is not set. "
-            "Please set it before running the server."
-        )
+    # Get access token (auto-refresh if needed)
+    access_token = await _token_manager.get_access_token()
 
     headers = {
-        "Authorization": f"token: {API_TOKEN}",
+        "token": access_token,
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
@@ -2325,11 +2377,224 @@ async def beds24_get_pricing_offers(params: GetPricingOffersInput) -> str:
 
 
 # ==============================================================================
+# Authentication Tools
+# ==============================================================================
+
+class SetupFromInviteCodeInput(BaseModel):
+    """Input model for setting up authentication from invite code."""
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra='forbid'
+    )
+
+    invite_code: str = Field(
+        ...,
+        description="Invite code generated from Beds24 (https://beds24.com/control3.php?pagetype=apiv2)"
+    )
+    device_name: Optional[str] = Field(
+        default="MCP Server",
+        description="Device name for the token (default: MCP Server)"
+    )
+
+
+@mcp.tool(
+    name="beds24_setup_from_invite_code",
+    annotations={
+        "title": "Setup Authentication from Invite Code",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def beds24_setup_from_invite_code(params: SetupFromInviteCodeInput) -> str:
+    """
+    Setup authentication using an invite code from Beds24.
+
+    This tool exchanges an invite code for a refresh token and automatically
+    configures the server to use it. The refresh token is stored in memory
+    and will be used to automatically obtain access tokens when needed.
+
+    IMPORTANT: After running this tool, save the refresh_token to your .env file:
+    echo "BEDS24_REFRESH_TOKEN=your_refresh_token" > .env
+
+    Invite codes can be generated at: https://beds24.com/control3.php?pagetype=apiv2
+
+    Args:
+        params (SetupFromInviteCodeInput): Validated input parameters containing:
+            - invite_code (str): The invite code from Beds24
+            - device_name (Optional[str]): Device name for identification
+
+    Returns:
+        str: JSON response containing:
+            - success (bool): Whether setup was successful
+            - refresh_token (str): The refresh token (SAVE THIS to .env!)
+            - message (str): Instructions for next steps
+
+    Example:
+        beds24_setup_from_invite_code(invite_code="your_code_here")
+    """
+    try:
+        headers = {
+            "code": params.invite_code
+        }
+        if params.device_name:
+            headers["deviceName"] = params.device_name
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{API_BASE_URL}/authentication/setup",
+                headers=headers,
+                timeout=30.0
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        refresh_token = result.get("refreshToken")
+        if refresh_token:
+            # Update the token manager with new refresh token
+            _token_manager.update_refresh_token(refresh_token)
+
+            return json.dumps({
+                "success": True,
+                "refresh_token": refresh_token,
+                "access_token": result.get("token"),
+                "expires_in": result.get("expiresIn"),
+                "message": (
+                    "Authentication setup successful!\n\n"
+                    "IMPORTANT: Save the refresh_token to your .env file:\n"
+                    f"echo \"BEDS24_REFRESH_TOKEN={refresh_token}\" > .env\n\n"
+                    "Then restart the server: docker compose down && docker compose up -d"
+                )
+            }, indent=2)
+
+        return json.dumps({
+            "success": False,
+            "error": "No refresh token in response",
+            "response": result
+        }, indent=2)
+
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401 or e.response.status_code == 400:
+            error_detail = ""
+            try:
+                error_data = e.response.json()
+                error_detail = error_data.get("error", "")
+            except:
+                pass
+            return json.dumps({
+                "success": False,
+                "error": f"Invalid or expired invite code: {error_detail}",
+                "message": "Please generate a new code from https://beds24.com/control3.php?pagetype=apiv2"
+            }, indent=2)
+        return json.dumps({"success": False, "error": _handle_api_error(e)}, indent=2)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, indent=2)
+
+
+@mcp.tool(
+    name="beds24_check_auth_status",
+    annotations={
+        "title": "Check Authentication Status",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True
+    }
+)
+async def beds24_check_auth_status() -> str:
+    """
+    Check the current authentication status.
+
+    This tool verifies if the server has a valid refresh token configured
+    and can obtain access tokens. It also shows the token details if available.
+
+    Returns:
+        str: JSON response containing:
+            - has_refresh_token (bool): Whether refresh token is configured
+            - access_token_valid (bool): Whether current access token is valid
+            - token_details (object): Details about the access token if valid
+
+    Example:
+        beds24_check_auth_status()
+    """
+    import time
+
+    result = {
+        "has_refresh_token": bool(_token_manager._refresh_token),
+        "refresh_token_set": "BEDS24_REFRESH_TOKEN env var is set" if _token_manager._refresh_token else "BEDS24_REFRESH_TOKEN env var is NOT set",
+        "cached_access_token": bool(_token_manager._access_token),
+        "token_expires_in": max(0, int(_token_manager._expires_at - time.time())) if _token_manager._access_token else 0
+    }
+
+    # Try to get/refresh access token to verify it works
+    try:
+        access_token = await _token_manager.get_access_token()
+        result["access_token_valid"] = True
+
+        # Get token details from API
+        async with httpx.AsyncClient() as client:
+            details_response = await client.get(
+                f"{API_BASE_URL}/authentication/details",
+                headers={"token": access_token},
+                timeout=30.0
+            )
+            if details_response.status_code == 200:
+                result["token_details"] = details_response.json()
+
+    except Exception as e:
+        result["access_token_valid"] = False
+        result["error"] = str(e)
+
+        if "BEDS24_REFRESH_TOKEN not set" in str(e):
+            result["message"] = (
+                "No refresh token configured. "
+                "Run beds24_setup_from_invite_code with an invite code, "
+                "or set BEDS24_REFRESH_TOKEN in your .env file."
+            )
+        elif "Invalid or expired" in str(e):
+            result["message"] = (
+                "Refresh token is invalid or expired. "
+                "Please generate a new invite code from "
+                "https://beds24.com/control3.php?pagetype=apiv2"
+            )
+
+    return json.dumps(result, indent=2)
+
+
+# ==============================================================================
 # Main Entry Point
 # ==============================================================================
 
 if __name__ == "__main__":
-    # Run the MCP server
-    # Default: stdio transport for local development
-    # Use --transport streamable-http --port 8000 for HTTP server
-    mcp.run()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Beds24 MCP Server")
+    parser.add_argument("--transport", type=str, default="stdio", choices=["stdio", "streamable-http"])
+    parser.add_argument("--port", type=int, default=8001)
+    args = parser.parse_args()
+
+    if args.transport == "streamable-http":
+        import uvicorn
+        from starlette.applications import Starlette
+        from starlette.routing import Mount
+        from starlette.responses import JSONResponse
+        from starlette.requests import Request
+
+        mcp_app = mcp.http_app(path="/mcp")
+
+        async def _health(request: Request) -> JSONResponse:
+            return JSONResponse({"status": "ok", "server": "beds24-mcp"})
+
+        app = Starlette(
+            lifespan=mcp_app.lifespan,
+            routes=[
+                # Mount MCP at root - it handles /mcp internally
+                Mount("/", app=mcp_app),
+            ],
+        )
+
+        uvicorn.run(app, host="0.0.0.0", port=args.port)
+    else:
+        mcp.run()

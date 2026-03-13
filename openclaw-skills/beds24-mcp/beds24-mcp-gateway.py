@@ -3,10 +3,10 @@
 Beds24 MCP HTTP Gateway for OpenClaw
 
 This script creates an HTTP API gateway that translates REST requests
-to MCP tool calls for Beds24 MCP server.
+to MCP tool calls for Beds24 MCP server using Streamable HTTP transport.
 
 Usage:
-    python beds24-mcp-gateway.py [--port 8767] [--mcp-url http://localhost:8761]
+    python beds24-mcp-gateway.py [--port 8767] [--mcp-url http://localhost:8001]
 """
 
 import os
@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 # Configuration
-MCP_URL = os.getenv("BEDS24_MCP_URL", "http://localhost:8761")
+MCP_URL = os.getenv("BEDS24_MCP_URL", "http://localhost:8001")
 GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "8767"))
 DEFAULT_AUTH_TOKEN = os.getenv("BEDS24_API_TOKEN", "")
 
@@ -29,13 +29,77 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Session storage (in-memory, resets on restart)
+_mcp_session_id: Optional[str] = None
+
+
+def parse_sse_response(text: str) -> Dict[str, Any]:
+    """Parse Server-Sent Events response."""
+    lines = text.strip().split('\n')
+    for line in lines:
+        if line.startswith('data: '):
+            data = line[6:]  # Remove 'data: ' prefix
+            try:
+                return json.loads(data)
+            except json.JSONDecodeError:
+                continue
+    return {"error": "Could not parse SSE response"}
+
+
+async def init_mcp_session(client: httpx.AsyncClient) -> Optional[str]:
+    """Initialize MCP session and return session ID."""
+    global _mcp_session_id
+
+    init_payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "beds24-gateway", "version": "1.0"}
+        }
+    }
+
+    headers = {
+        "Accept": "application/json, text/event-stream",
+        "Content-Type": "application/json"
+    }
+
+    response = await client.post(
+        f"{MCP_URL}/mcp",
+        json=init_payload,
+        headers=headers
+    )
+
+    # Get session ID from response header
+    session_id = response.headers.get("mcp-session-id") or response.headers.get("Mcp-Session-Id")
+    if session_id:
+        _mcp_session_id = session_id
+        return session_id
+
+    return _mcp_session_id
+
 
 async def call_mcp_tool(tool_name: str, params: Dict[str, Any], auth_token: str = None) -> Dict[str, Any]:
-    """Call an MCP tool via HTTP transport."""
+    """Call an MCP tool via Streamable HTTP transport."""
+    global _mcp_session_id
+
     try:
+        headers = {
+            "Accept": "application/json, text/event-stream",
+            "Content-Type": "application/json"
+        }
+
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
+        if _mcp_session_id:
+            headers["mcp-session-id"] = _mcp_session_id
+
         payload = {
             "jsonrpc": "2.0",
-            "id": 1,
+            "id": 2,
             "method": "tools/call",
             "params": {
                 "name": tool_name,
@@ -43,19 +107,50 @@ async def call_mcp_tool(tool_name: str, params: Dict[str, Any], auth_token: str 
             }
         }
 
-        headers = {}
-        if auth_token:
-            headers["Authorization"] = f"Bearer {auth_token}"
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # If no session, initialize first
+            if not _mcp_session_id:
+                await init_mcp_session(client)
+                if _mcp_session_id:
+                    headers["mcp-session-id"] = _mcp_session_id
 
-        async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{MCP_URL}/mcp",
                 json=payload,
-                headers=headers,
-                timeout=60.0
+                headers=headers
             )
+
+            # Handle session errors
+            if response.status_code == 400 and "session" in response.text.lower():
+                # Re-initialize session
+                await init_mcp_session(client)
+                if _mcp_session_id:
+                    headers["mcp-session-id"] = _mcp_session_id
+                    response = await client.post(
+                        f"{MCP_URL}/mcp",
+                        json=payload,
+                        headers=headers
+                    )
+
             response.raise_for_status()
-            return response.json()
+
+            # Parse SSE response
+            text = response.text
+            result = parse_sse_response(text)
+
+            if "result" in result:
+                content = result["result"].get("content", [])
+                if content and len(content) > 0:
+                    text_content = content[0].get("text", "")
+                    try:
+                        return json.loads(text_content)
+                    except json.JSONDecodeError:
+                        return {"result": text_content}
+                return result["result"]
+            elif "error" in result:
+                return {"error": result["error"]}
+            return result
+
     except Exception as e:
         return {"error": str(e)}
 
@@ -87,6 +182,8 @@ async def root():
 async def list_tools():
     """List available Beds24 MCP tools."""
     tools = [
+        {"name": "beds24_setup_from_invite_code", "description": "Setup auth from invite code"},
+        {"name": "beds24_check_auth_status", "description": "Check authentication status"},
         {"name": "beds24_list_bookings", "description": "List bookings with filters"},
         {"name": "beds24_get_booking", "description": "Get booking details"},
         {"name": "beds24_create_booking", "description": "Create a new booking"},
@@ -190,13 +287,41 @@ async def cancel_booking(booking_id: str, request: Request = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Authentication endpoints
+@app.post("/auth/setup")
+async def setup_from_invite_code(request: Request):
+    """Setup authentication from invite code.
+
+    Invite codes can be generated at: https://beds24.com/control3.php?pagetype=apiv2
+
+    Returns refresh_token that should be saved to .env file.
+    """
+    try:
+        data = await request.json()
+        params = {"params": {"invite_code": data.get("invite_code")}}
+        if data.get("device_name"):
+            params["params"]["device_name"] = data.get("device_name")
+        result = await call_mcp_tool("beds24_setup_from_invite_code", params, None)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/auth/status")
+async def check_auth_status():
+    """Check current authentication status."""
+    try:
+        result = await call_mcp_tool("beds24_check_auth_status", {}, None)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Property endpoints
 @app.get("/properties")
-async def list_properties(
-    limit: int = 50
-):
+async def list_properties(limit: int = 50):
     """List properties."""
-    result = await call_mcp_tool("beds24_list_properties", {"limit": limit}, DEFAULT_AUTH_TOKEN)
+    result = await call_mcp_tool("beds24_list_properties", {"params": {"limit": limit}}, DEFAULT_AUTH_TOKEN)
     return result
 
 
