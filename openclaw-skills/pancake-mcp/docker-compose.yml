@@ -12,6 +12,7 @@ services:
       - GATEWAY_PORT=8766
       - PANCAKE_MCP_URL=http://pancake-mcp:8000
       - PANCAKE_API_KEY=${PANCAKE_API_KEY}
+      - PANCAKE_ACCESS_TOKEN=${PANCAKE_ACCESS_TOKEN}
     depends_on:
       - pancake-mcp
     restart: unless-stopped
