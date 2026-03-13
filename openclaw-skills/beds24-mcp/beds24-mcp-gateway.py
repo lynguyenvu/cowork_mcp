@@ -231,14 +231,14 @@ async def list_bookings(
     if check_in_to:
         params["checkInTo"] = check_in_to
 
-    result = await call_mcp_tool("beds24_list_bookings", params, DEFAULT_AUTH_TOKEN)
+    result = await call_mcp_tool("beds24_list_bookings", {"params": params}, DEFAULT_AUTH_TOKEN)
     return result
 
 
 @app.get("/bookings/{booking_id}")
 async def get_booking(booking_id: str):
     """Get booking details."""
-    result = await call_mcp_tool("beds24_get_booking", {"bookingId": booking_id}, DEFAULT_AUTH_TOKEN)
+    result = await call_mcp_tool("beds24_get_booking", {"params": {"bookingId": booking_id}}, DEFAULT_AUTH_TOKEN)
     return result
 
 
@@ -247,7 +247,7 @@ async def create_booking(request: Request):
     """Create a new booking."""
     try:
         data = await request.json()
-        result = await call_mcp_tool("beds24_create_booking", data, DEFAULT_AUTH_TOKEN)
+        result = await call_mcp_tool("beds24_create_booking", {"params": data}, DEFAULT_AUTH_TOKEN)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -259,7 +259,7 @@ async def update_booking(booking_id: str, request: Request):
     try:
         data = await request.json()
         data["bookingId"] = booking_id
-        result = await call_mcp_tool("beds24_update_booking", data, DEFAULT_AUTH_TOKEN)
+        result = await call_mcp_tool("beds24_update_booking", {"params": data}, DEFAULT_AUTH_TOKEN)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -281,7 +281,7 @@ async def cancel_booking(booking_id: str, request: Request = None):
         if reason:
             params["reason"] = reason
 
-        result = await call_mcp_tool("beds24_cancel_booking", params, DEFAULT_AUTH_TOKEN)
+        result = await call_mcp_tool("beds24_cancel_booking", {"params": params}, DEFAULT_AUTH_TOKEN)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -328,14 +328,14 @@ async def list_properties(limit: int = 50):
 @app.get("/properties/{property_id}")
 async def get_property(property_id: str):
     """Get property details."""
-    result = await call_mcp_tool("beds24_get_property", {"propertyId": property_id}, DEFAULT_AUTH_TOKEN)
+    result = await call_mcp_tool("beds24_get_property", {"params": {"propertyId": property_id}}, DEFAULT_AUTH_TOKEN)
     return result
 
 
 @app.get("/properties/{property_id}/rooms")
 async def list_property_rooms(property_id: str):
     """List rooms in a property."""
-    result = await call_mcp_tool("beds24_list_property_rooms", {"propertyId": property_id}, DEFAULT_AUTH_TOKEN)
+    result = await call_mcp_tool("beds24_list_property_rooms", {"params": {"propertyId": property_id}}, DEFAULT_AUTH_TOKEN)
     return result
 
 
@@ -357,7 +357,7 @@ async def check_availability(
     if check_out:
         params["checkOut"] = check_out
 
-    result = await call_mcp_tool("beds24_check_availability", params, DEFAULT_AUTH_TOKEN)
+    result = await call_mcp_tool("beds24_check_availability", {"params": params}, DEFAULT_AUTH_TOKEN)
     return result
 
 
@@ -377,7 +377,7 @@ async def get_calendar(
     if month:
         params["month"] = month
 
-    result = await call_mcp_tool("beds24_get_calendar", params, DEFAULT_AUTH_TOKEN)
+    result = await call_mcp_tool("beds24_get_calendar", {"params": params}, DEFAULT_AUTH_TOKEN)
     return result
 
 
@@ -386,7 +386,7 @@ async def update_calendar(request: Request):
     """Update calendar availability."""
     try:
         data = await request.json()
-        result = await call_mcp_tool("beds24_update_calendar", data, DEFAULT_AUTH_TOKEN)
+        result = await call_mcp_tool("beds24_update_calendar", {"params": data}, DEFAULT_AUTH_TOKEN)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -409,7 +409,7 @@ async def get_pricing_offers(
     if check_out:
         params["checkOut"] = check_out
 
-    result = await call_mcp_tool("beds24_get_pricing_offers", params, DEFAULT_AUTH_TOKEN)
+    result = await call_mcp_tool("beds24_get_pricing_offers", {"params": params}, DEFAULT_AUTH_TOKEN)
     return result
 
 
