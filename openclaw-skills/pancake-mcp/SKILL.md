@@ -15,12 +15,14 @@ Query and manage Pancake POS system for Vietnamese e-commerce businesses. This s
 
 ## Configuration
 
-Requires `PANCAKE_API_KEY` environment variable.
+Requires `PANCAKE_API_KEY` for POS features (orders, inventory, shipping).
+For chat/conversation features only, use `PANCAKE_ACCESS_TOKEN` instead.
 
 ```json
 {
   "pancake-mcp": {
-    "apiKey": "your_pancake_api_key"
+    "apiKey": "your_pancake_api_key",
+    "accessToken": "your_chat_access_token"
   }
 }
 ```
