@@ -1628,8 +1628,9 @@ async def beds24_list_properties(params: ListPropertiesInput) -> str:
         # Make API request
         data = await _make_api_request("properties", params=query_params)
 
-        properties = data.get('properties', [])
-        total = data.get('total', len(properties))
+        # API returns data in 'data' key, not 'properties'
+        properties = data.get('data', [])
+        total = data.get('count', len(properties))
 
         if not properties:
             return "No properties found"
@@ -1647,8 +1648,8 @@ async def beds24_list_properties(params: ListPropertiesInput) -> str:
             for prop in properties:
                 prop_id = prop.get('id', 'N/A')
                 prop_name = prop.get('name', 'N/A')
-                city = prop.get('address', {}).get('city', 'N/A')
-                country = prop.get('address', {}).get('country', 'N/A')
+                city = prop.get('city', 'N/A')
+                country = prop.get('country', 'N/A')
 
                 lines.append(f"## {prop_name} (ID: {prop_id})")
                 lines.append(f"- **Location:** {city}, {country}")
