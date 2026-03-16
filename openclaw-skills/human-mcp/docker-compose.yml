@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  human-mcp-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: human-mcp-gateway
+    ports:
+      - "8768:8768"
+    environment:
+      - GATEWAY_PORT=8768
+      - HUMAN_MCP_URL=http://human-mcp:3100
+      - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
+    depends_on:
+      - human-mcp
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+  human-mcp:
+    build:
+      context: ../servers/human-mcp
+      dockerfile: Dockerfile
+    container_name: human-mcp-server
+    ports:
+      - "3100:3100"
+    environment:
+      - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+networks:
+  openclaw-network:
+    driver: bridge
