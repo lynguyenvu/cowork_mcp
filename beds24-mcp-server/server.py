@@ -36,7 +36,7 @@ mcp = FastMCP("beds24_mcp")
 
 API_BASE_URL = os.getenv("BEDS24_API_BASE_URL", "https://api.beds24.com/v2")
 REFRESH_TOKEN = os.getenv("BEDS24_REFRESH_TOKEN", "")
-CHARACTER_LIMIT = 25000  # Maximum response size in characters
+CHARACTER_LIMIT = 100000  # Maximum response size in characters
 
 # ==============================================================================
 # Token Manager - Auto-refresh access token from refresh token
@@ -199,25 +199,49 @@ class ListBookingsInput(BaseModel):
     )
     status: Optional[str] = Field(
         default=None,
-        description="Filter by booking status (e.g., 'confirmed', 'pending', 'cancelled')",
+        description="Filter by booking status (e.g., 'confirmed', 'pending', 'cancelled', 'inquiry')",
         min_length=1,
         max_length=50
     )
-    check_in_after: Optional[str] = Field(
+    arrival: Optional[str] = Field(
         default=None,
-        description="Filter bookings with check-in date after this date (format: YYYY-MM-DD, e.g., '2024-03-15')",
+        description="Filter by arrival/check-in date (format: YYYY-MM-DD, e.g., '2026-03-18')",
         pattern=r"^\d{4}-\d{2}-\d{2}$"
     )
-    check_in_before: Optional[str] = Field(
+    arrival_from: Optional[str] = Field(
         default=None,
-        description="Filter bookings with check-in date before this date (format: YYYY-MM-DD)",
+        description="Filter by arrival date from (format: YYYY-MM-DD, e.g., '2026-03-18')",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        alias="arrivalFrom"
+    )
+    arrival_to: Optional[str] = Field(
+        default=None,
+        description="Filter by arrival date to (format: YYYY-MM-DD, e.g., '2026-03-20')",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        alias="arrivalTo"
+    )
+    departure: Optional[str] = Field(
+        default=None,
+        description="Filter by departure/check-out date (format: YYYY-MM-DD, e.g., '2026-03-20')",
         pattern=r"^\d{4}-\d{2}-\d{2}$"
+    )
+    departure_from: Optional[str] = Field(
+        default=None,
+        description="Filter by departure date from (format: YYYY-MM-DD, e.g., '2026-03-20')",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        alias="departureFrom"
+    )
+    departure_to: Optional[str] = Field(
+        default=None,
+        description="Filter by departure date to (format: YYYY-MM-DD, e.g., '2026-03-25')",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+        alias="departureTo"
     )
     limit: Optional[int] = Field(
         default=20,
-        description="Maximum number of bookings to return (range: 1-100)",
+        description="Maximum number of bookings to return (range: 1-1000)",
         ge=1,
-        le=100
+        le=1000
     )
     offset: Optional[int] = Field(
         default=0,
@@ -227,6 +251,18 @@ class ListBookingsInput(BaseModel):
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' for human-readable or 'json' for machine-readable"
+    )
+    include_invoice_items: Optional[bool] = Field(
+        default=True,
+        description="Include invoice items in response (default: true)"
+    )
+    include_info_items: Optional[bool] = Field(
+        default=True,
+        description="Include info items in response (default: true)"
+    )
+    include_booking_group: Optional[bool] = Field(
+        default=True,
+        description="Include booking group data in response (default: true)"
     )
 
 
@@ -784,11 +820,14 @@ def _format_markdown_booking(booking: Dict[str, Any]) -> str:
         lines.append("")
 
     # Guest Information
-    if 'guest' in booking or 'guestName' in booking:
+    if any(k in booking for k in ['firstName', 'lastName', 'email', 'guest', 'guestName']):
         lines.append("### Guest Information")
-        guest_name = booking.get('guestName') or booking.get('guest', {}).get('name', 'N/A')
-        guest_email = booking.get('guestEmail') or booking.get('guest', {}).get('email', 'N/A')
-        guest_phone = booking.get('guestPhone') or booking.get('guest', {}).get('phone', 'N/A')
+        # API returns firstName/lastName directly
+        first_name = booking.get('firstName', '')
+        last_name = booking.get('lastName', '')
+        guest_name = f"{first_name} {last_name}".strip() or booking.get('guestName') or 'N/A'
+        guest_email = booking.get('email') or booking.get('guestEmail') or booking.get('guest', {}).get('email', 'N/A')
+        guest_phone = booking.get('phone') or booking.get('guestPhone') or booking.get('guest', {}).get('phone', '')
 
         lines.append(f"- **Name:** {guest_name}")
         lines.append(f"- **Email:** {guest_email}")
@@ -797,13 +836,35 @@ def _format_markdown_booking(booking: Dict[str, Any]) -> str:
         lines.append("")
 
     # Property & Room
-    if 'property' in booking or 'propertyId' in booking:
+    if 'propertyId' in booking or 'roomId' in booking:
         lines.append("### Property & Room")
-        property_name = booking.get('propertyName') or booking.get('property', {}).get('name', 'N/A')
-        room_name = booking.get('roomName') or booking.get('room', {}).get('name', 'N/A')
+        property_id = booking.get('propertyId', 'N/A')
+        room_id = booking.get('roomId', 'N/A')
 
-        lines.append(f"- **Property:** {property_name}")
-        lines.append(f"- **Room:** {room_name}")
+        lines.append(f"- **Property ID:** {property_id}")
+        lines.append(f"- **Room ID:** {room_id}")
+        lines.append("")
+
+    # Invoice Items
+    invoice_items = booking.get('invoiceItems', [])
+    if invoice_items:
+        lines.append("### Invoice Items")
+        for item in invoice_items:
+            item_type = item.get('type', 'N/A')
+            desc = item.get('description', 'N/A')
+            amount = item.get('amount', 0)
+            qty = item.get('qty', 1)
+            line_total = item.get('lineTotal', amount)
+            lines.append(f"- **{item_type}**: {desc} - {amount:,.0f} x {qty} = {line_total:,.0f}")
+        lines.append("")
+
+    # Info Items
+    info_items = booking.get('infoItems', [])
+    if info_items:
+        lines.append("### Info Items")
+        for item in info_items:
+            desc = item.get('description', 'N/A')
+            lines.append(f"- {desc}")
         lines.append("")
 
     # Additional Details
@@ -1057,38 +1118,93 @@ async def beds24_list_bookings(params: ListBookingsInput) -> str:
         - Returns "No bookings found matching criteria" if no results
     """
     try:
-        # Build query parameters
+        # Build query parameters - Beds24 API uses 'arrival' and 'departure'
         query_params = {}
         if params.property_id:
             query_params['propertyId'] = params.property_id
         if params.status:
             query_params['status'] = params.status
-        if params.check_in_after:
-            query_params['checkInAfter'] = params.check_in_after
-        if params.check_in_before:
-            query_params['checkInBefore'] = params.check_in_before
+        if params.arrival:
+            query_params['arrival'] = params.arrival
+        if params.arrival_from:
+            query_params['arrivalFrom'] = params.arrival_from
+        if params.arrival_to:
+            query_params['arrivalTo'] = params.arrival_to
+        if params.departure:
+            query_params['departure'] = params.departure
+        if params.departure_from:
+            query_params['departureFrom'] = params.departure_from
+        if params.departure_to:
+            query_params['departureTo'] = params.departure_to
         if params.limit:
             query_params['limit'] = params.limit
         if params.offset:
             query_params['offset'] = params.offset
 
-        # Make API request
-        data = await _make_api_request("bookings", params=query_params)
+        # Include related data
+        if params.include_invoice_items:
+            query_params['includeInvoiceItems'] = 'true'
+        if params.include_info_items:
+            query_params['includeInfoItems'] = 'true'
+        if params.include_booking_group:
+            query_params['includeBookingGroup'] = 'true'
 
-        bookings = data.get('bookings', [])
-        total = data.get('total', len(bookings))
+        # Fetch all bookings with pagination support
+        # API returns max 100 per page, so we need to fetch multiple pages if needed
+        all_bookings = []
+        page = 1
+        max_pages = 10  # Safety limit to prevent infinite loops
+        # Calculate desired limit including offset to support proper pagination
+        desired_limit = (params.offset or 0) + (params.limit or 100)
+        api_has_more = False
+        api_total = None
+
+        while len(all_bookings) < desired_limit and page <= max_pages:
+            query_params['page'] = page
+            query_params['limit'] = min(100, desired_limit - len(all_bookings))
+
+            data = await _make_api_request("bookings", params=query_params)
+
+            bookings_page = data.get('data', []) if isinstance(data, dict) else []
+            if not bookings_page:
+                break
+
+            all_bookings.extend(bookings_page)
+
+            # Save API pagination info from last response
+            api_has_more = data.get('pages', {}).get('nextPageExists', False)
+            api_total = data.get('count')  # Total matching filters from API
+
+            # Check if there's a next page
+            if not api_has_more:
+                break
+
+            page += 1
+
+        # Apply offset and limit slicing
+        offset = params.offset or 0
+        limit = params.limit or len(all_bookings)
+        total_fetched = len(all_bookings)
+        bookings = all_bookings[offset:offset + limit]
+
+        # Calculate has_more based on API response, not just fetched data
+        remaining_after_slice = total_fetched > offset + len(bookings)
+        has_more = api_has_more or remaining_after_slice
 
         if not bookings:
             return "No bookings found matching criteria"
 
+        # Use API total if available, otherwise use fetched count
+        total_count = api_total if api_total is not None else total_fetched
+
         # Format response
         if params.response_format == ResponseFormat.MARKDOWN:
             lines = ["# Booking List", ""]
-            lines.append(f"Total bookings: {total} (showing {len(bookings)} from offset {params.offset})")
+            lines.append(f"Total bookings: {total_count} (showing {len(bookings)} from offset {offset})")
             lines.append("")
 
-            if total > params.limit + params.offset:
-                lines.append(f"⚠️ More bookings available. Use offset={params.offset + params.limit} to see next page.")
+            if has_more:
+                lines.append(f"⚠️ More bookings available. Use offset={offset + len(bookings)} to see next page.")
                 lines.append("")
 
             for booking in bookings:
@@ -1098,21 +1214,53 @@ async def beds24_list_bookings(params: ListBookingsInput) -> str:
         else:
             # JSON format
             response = {
-                "total": total,
+                "total": total_count,
                 "count": len(bookings),
-                "offset": params.offset,
-                "has_more": total > params.offset + len(bookings),
-                "next_offset": params.offset + len(bookings) if total > params.offset + len(bookings) else None,
+                "offset": offset,
+                "has_more": has_more,
+                "next_offset": offset + len(bookings) if has_more else None,
                 "bookings": bookings
             }
             result = json.dumps(response, indent=2)
 
-        # Check character limit
+        # Check character limit - if exceeded, truncate and return partial data
         if len(result) > CHARACTER_LIMIT:
-            return (
-                f"Response truncated. Found {total} bookings but response exceeds {CHARACTER_LIMIT} character limit. "
-                f"Use filters or reduce limit parameter to see fewer results."
-            )
+            # Calculate how many bookings we can include
+            result_length = len(result)
+            bookings_count = len(bookings)
+            avg_chars_per_booking = result_length // max(1, bookings_count)
+
+            # Estimate safe count (leave 10% margin for JSON overhead)
+            safe_count = max(1, int((CHARACTER_LIMIT * 0.9) / avg_chars_per_booking))
+
+            # Truncate bookings
+            truncated_bookings = bookings[:safe_count]
+
+            if params.response_format == ResponseFormat.MARKDOWN:
+                lines = ["# Booking List", ""]
+                lines.append(f"Total bookings: {total_count} (showing {len(truncated_bookings)} of {bookings_count} from offset {offset})")
+                lines.append("")
+                lines.append(f"⚠️ Response truncated due to size limit. Use offset={offset + len(truncated_bookings)} to see next batch.")
+                lines.append("")
+
+                for booking in truncated_bookings:
+                    lines.append(_format_markdown_booking(booking))
+
+                result = "\n".join(lines)
+            else:
+                # JSON format with truncation info
+                response = {
+                    "total": total_count,
+                    "count": len(truncated_bookings),
+                    "offset": offset,
+                    "has_more": True,
+                    "truncated": True,
+                    "truncated_from": bookings_count,
+                    "next_offset": offset + len(truncated_bookings),
+                    "note": f"Response truncated from {bookings_count} to {len(truncated_bookings)} bookings due to size limit. Use next_offset to fetch more.",
+                    "bookings": truncated_bookings
+                }
+                result = json.dumps(response, indent=2)
 
         return result
 
@@ -1185,8 +1333,17 @@ async def beds24_get_booking(params: GetBookingInput) -> str:
         - Returns formatted booking details or error message
     """
     try:
-        # Make API request
-        booking = await _make_api_request(f"bookings/{params.booking_id}")
+        # Make API request - Beds24 uses query param "id" not path param
+        booking_data = await _make_api_request("bookings", params={"id": params.booking_id})
+
+        # API returns {success: true, data: [...], count: 1}
+        if isinstance(booking_data, dict) and 'data' in booking_data:
+            bookings = booking_data.get('data', [])
+            if not bookings:
+                return "Error: Booking not found."
+            booking = bookings[0]
+        else:
+            booking = booking_data
 
         # Format response
         if params.response_format == ResponseFormat.MARKDOWN:
@@ -2579,7 +2736,7 @@ if __name__ == "__main__":
     if args.transport == "streamable-http":
         import uvicorn
         from starlette.applications import Starlette
-        from starlette.routing import Mount
+        from starlette.routing import Mount, Route
         from starlette.responses import JSONResponse
         from starlette.requests import Request
 
@@ -2591,11 +2748,12 @@ if __name__ == "__main__":
         app = Starlette(
             lifespan=mcp_app.lifespan,
             routes=[
+                Route("/health", _health, methods=["GET"]),
                 # Mount MCP at root - it handles /mcp internally
                 Mount("/", app=mcp_app),
             ],
         )
 
-        uvicorn.run(app, host="0.0.0.0", port=args.port)
+        uvicorn.run(app, host="0.0.0.0", port=args.port, proxy_headers=True, forwarded_allow_ips="*")
     else:
         mcp.run()
