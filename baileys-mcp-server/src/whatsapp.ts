@@ -199,5 +199,8 @@ export class WhatsAppManager {
 
     this.isShuttingDown = false;
     this.reconnectAttempts = 0;
+
+    // Reconnect to generate new QR for fresh login
+    await this.connect();
   }
 }
