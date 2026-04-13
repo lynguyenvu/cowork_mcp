@@ -9,7 +9,7 @@ WorkingDirectory=/cowork_mcp/baileys-mcp-server
 Environment="TRANSPORT=streamable-http"
 Environment="PORT=8769"
 Environment="WHATSAPP_ACCOUNTS=default"
-ExecStart=/usr/bin/node dist/index.js
+ExecStart=/usr/local/bin/node dist/index.js
 Restart=always
 RestartSec=10
 StandardOutput=journal
