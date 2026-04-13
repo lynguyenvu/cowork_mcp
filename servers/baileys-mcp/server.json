@@ -1,0 +1,35 @@
+{
+  "name": "baileys-mcp",
+  "description": "WhatsApp MCP Server using Baileys - Messaging, Groups, and Connection Management",
+  "version": "1.0.0",
+  "transport": {
+    "type": "stdio",
+    "command": "node",
+    "args": ["/cowork_mcp/baileys-mcp-server/dist/index.js"],
+    "env": {
+      "WHATSAPP_ACCOUNTS": "${WHATSAPP_ACCOUNTS:-default}"
+    }
+  },
+  "http_transport": {
+    "type": "http",
+    "url": "http://localhost:8769/mcp",
+    "env": {
+      "WHATSAPP_ACCOUNTS": "${WHATSAPP_ACCOUNTS:-default}"
+    }
+  },
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  },
+  "tool_count": 22,
+  "categories": ["whatsapp", "messaging", "communication", "groups"],
+  "required_env_vars": [],
+  "optional_env_vars": [
+    "WHATSAPP_ACCOUNTS",
+    "TRANSPORT",
+    "PORT"
+  ],
+  "tools_file": "/cowork_mcp/servers/baileys-mcp/tools.json",
+  "notes": "First run: scan QR from terminal (stdio) or GET /qr?account={id} (HTTP). Credentials saved to auth_info/{accountId}/ for auto-reconnect. Multi-account: set WHATSAPP_ACCOUNTS=default,work,sales"
+}

@@ -1,0 +1,26 @@
+{
+  "name": "baileys-mcp-server",
+  "version": "1.0.0",
+  "description": "WhatsApp MCP server using Baileys library",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.1",
+    "@whiskeysockets/baileys": "^6.7.16",
+    "better-sqlite3": "^11.10.0",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.0.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=Baileys WhatsApp MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/cowork_mcp/baileys-mcp-server
+Environment="TRANSPORT=streamable-http"
+Environment="PORT=8769"
+Environment="WHATSAPP_ACCOUNTS=default"
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

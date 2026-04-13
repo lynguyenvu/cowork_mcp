@@ -1,0 +1,16 @@
+[Unit]
+Description=WhatsApp QR Notifier - Poll and send to Telegram
+After=network.target baileys-mcp.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/cowork_mcp/baileys-mcp-server
+Environment="TELEGRAM_BOT_TOKEN=8271494710:AAFLB8oE--xBnpvQ850yVRpd7sROHqwvw44"
+Environment="TELEGRAM_CHAT_ID=%i"  # Chat ID passed via service name (whatsapp-qr-notify@CHATID)
+Environment="BAILEYS_MCP_URL=http://localhost:8769"
+ExecStart=/usr/bin/python3 /cowork_mcp/baileys-mcp-server/scripts/whatsapp-qr-notify.py --chat-id "${TELEGRAM_CHAT_ID}"
+Restart=no  # Single run, scheduled via systemd timer
+
+[Install]
+WantedBy=multi-user.target

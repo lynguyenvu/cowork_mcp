@@ -1,0 +1,112 @@
+[
+  {
+    "name": "whatsapp_list_accounts",
+    "description": "List all configured WhatsApp accounts and their connection statuses",
+    "category": "connection"
+  },
+  {
+    "name": "whatsapp_get_status",
+    "description": "Get current WhatsApp connection status, phone number, and QR code",
+    "category": "connection"
+  },
+  {
+    "name": "whatsapp_logout",
+    "description": "Logout from WhatsApp and clear saved session credentials",
+    "category": "connection"
+  },
+  {
+    "name": "whatsapp_send_text",
+    "description": "Send a text message to a user or group with optional @mentions",
+    "category": "messaging"
+  },
+  {
+    "name": "whatsapp_send_image",
+    "description": "Send an image from URL or base64 with optional caption",
+    "category": "messaging"
+  },
+  {
+    "name": "whatsapp_send_document",
+    "description": "Send a document file from URL",
+    "category": "messaging"
+  },
+  {
+    "name": "whatsapp_send_audio",
+    "description": "Send an audio message from URL",
+    "category": "messaging"
+  },
+  {
+    "name": "whatsapp_send_video",
+    "description": "Send a video from URL with optional caption",
+    "category": "messaging"
+  },
+  {
+    "name": "whatsapp_send_reaction",
+    "description": "React to a message with an emoji",
+    "category": "messaging"
+  },
+  {
+    "name": "whatsapp_send_poll",
+    "description": "Send a poll message with multiple options",
+    "category": "messaging"
+  },
+  {
+    "name": "whatsapp_delete_message",
+    "description": "Delete a sent message (within 48-hour window)",
+    "category": "messaging"
+  },
+  {
+    "name": "whatsapp_get_messages",
+    "description": "Retrieve recent messages from the in-memory store, optionally filtered by JID",
+    "category": "messaging"
+  },
+  {
+    "name": "whatsapp_check_number",
+    "description": "Check if a phone number has an active WhatsApp account",
+    "category": "contacts"
+  },
+  {
+    "name": "whatsapp_list_groups",
+    "description": "List all WhatsApp groups the connected account is a member of",
+    "category": "groups"
+  },
+  {
+    "name": "whatsapp_get_group_info",
+    "description": "Get detailed metadata for a group including participants",
+    "category": "groups"
+  },
+  {
+    "name": "whatsapp_create_group",
+    "description": "Create a new WhatsApp group with initial participants",
+    "category": "groups"
+  },
+  {
+    "name": "whatsapp_add_participants",
+    "description": "Add participants to an existing group",
+    "category": "groups"
+  },
+  {
+    "name": "whatsapp_remove_participants",
+    "description": "Remove participants from a group",
+    "category": "groups"
+  },
+  {
+    "name": "whatsapp_update_group_subject",
+    "description": "Update the name/subject of a WhatsApp group",
+    "category": "groups"
+  },
+  {
+    "name": "whatsapp_update_group_description",
+    "description": "Update the description of a WhatsApp group",
+    "category": "groups"
+  },
+  {
+    "name": "whatsapp_get_invite_link",
+    "description": "Get the invite link for a WhatsApp group",
+    "category": "groups"
+  },
+  {
+    "name": "whatsapp_leave_group",
+    "description": "Leave a WhatsApp group",
+    "category": "groups"
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "name": "baileys-mcp",
+  "description": "WhatsApp MCP Server using Baileys - Messaging, Groups, and Connection Management",
+  "version": "1.0.0",
+  "transport": {
+    "type": "http",
+    "url": "http://localhost:8769/mcp"
+  },
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  },
+  "tool_count": 22,
+  "categories": ["whatsapp", "messaging", "communication"],
+  "optional_env_vars": [
+    "WHATSAPP_ACCOUNTS",
+    "TRANSPORT",
+    "PORT"
+  ],
+  "notes": "Docker deploy. Scan QR: GET http://localhost:8769/qr?account={id}. Health: GET http://localhost:8769/health. Multi-account: set WHATSAPP_ACCOUNTS=default,work,sales in .env"
+}

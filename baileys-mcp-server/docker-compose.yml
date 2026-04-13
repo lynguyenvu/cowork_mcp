@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  baileys-mcp:
+    build: .
+    container_name: baileys-mcp-server
+    ports:
+      - "8769:8769"
+    environment:
+      - TRANSPORT=streamable-http
+      - PORT=8769
+    volumes:
+      - baileys-auth:/app/auth_info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8769/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  baileys-auth:
+    driver: local

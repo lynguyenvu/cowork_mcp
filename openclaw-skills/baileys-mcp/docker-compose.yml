@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  baileys-mcp-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: baileys-mcp-gateway
+    ports:
+      - "8770:8770"
+    environment:
+      - GATEWAY_PORT=8770
+      - BAILEYS_MCP_URL=http://baileys-mcp:8769
+    depends_on:
+      - baileys-mcp
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+  baileys-mcp:
+    build:
+      context: /cowork_mcp/baileys-mcp-server
+      dockerfile: Dockerfile
+    container_name: baileys-mcp-server
+    ports:
+      - "8769:8769"
+    environment:
+      - TRANSPORT=streamable-http
+      - PORT=8769
+    volumes:
+      - baileys-auth:/app/auth_info
+    restart: unless-stopped
+    networks:
+      - openclaw-network
+
+volumes:
+  baileys-auth:
+    driver: local
+
+networks:
+  openclaw-network:
+    driver: bridge
