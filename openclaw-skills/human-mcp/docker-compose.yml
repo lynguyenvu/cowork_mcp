@@ -10,7 +10,7 @@ services:
       - "8768:8768"
     environment:
       - GATEWAY_PORT=8768
-      - HUMAN_MCP_URL=http://human-mcp:3100
+      - HUMAN_MCP_URL=http://human-mcp-server:3100
       - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
     depends_on:
       - human-mcp

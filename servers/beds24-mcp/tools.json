@@ -24,15 +24,27 @@
     "name": "beds24_create_booking",
     "description": "Create a new booking with guest information, dates, and preferences.",
     "arguments": [
-      {"name": "property_id", "type": "string", "desc": "Property ID for the booking"},
-      {"name": "room_id", "type": "string", "desc": "Specific room ID (optional)"},
-      {"name": "check_in", "type": "string", "desc": "Check-in date (YYYY-MM-DD)"},
-      {"name": "check_out", "type": "string", "desc": "Check-out date (YYYY-MM-DD)"},
-      {"name": "guest_name", "type": "string", "desc": "Guest's full name"},
-      {"name": "guest_email", "type": "string", "desc": "Guest's email address"},
-      {"name": "guest_phone", "type": "string", "desc": "Guest's phone number (optional)"},
-      {"name": "number_of_guests", "type": "number", "desc": "Number of guests (default 1)"},
-      {"name": "special_requests", "type": "string", "desc": "Special requests or notes"},
+      {"name": "room_id", "type": "number", "desc": "Beds24 room ID to book (required)"},
+      {"name": "arrival", "type": "string", "desc": "Arrival/check-in date (YYYY-MM-DD, required)"},
+      {"name": "departure", "type": "string", "desc": "Departure/check-out date (YYYY-MM-DD, required)"},
+      {"name": "first_name", "type": "string", "desc": "Guest's first name (required)"},
+      {"name": "last_name", "type": "string", "desc": "Guest's last name (required)"},
+      {"name": "email", "type": "string", "desc": "Guest's email address (required)"},
+      {"name": "status", "type": "string", "desc": "Booking status: 'confirmed', 'provisional', etc. (default: confirmed)"},
+      {"name": "num_adult", "type": "number", "desc": "Number of adults (default 1)"},
+      {"name": "num_child", "type": "number", "desc": "Number of children (default 0)"},
+      {"name": "title", "type": "string", "desc": "Guest title: Mr, Mrs, Ms, Dr (optional)"},
+      {"name": "phone", "type": "string", "desc": "Guest's phone number (optional)"},
+      {"name": "address", "type": "string", "desc": "Guest's street address (optional)"},
+      {"name": "city", "type": "string", "desc": "Guest's city (optional)"},
+      {"name": "state", "type": "string", "desc": "Guest's state/province (optional)"},
+      {"name": "postcode", "type": "string", "desc": "Guest's postcode (optional)"},
+      {"name": "country", "type": "string", "desc": "Guest's country (optional)"},
+      {"name": "channel", "type": "string", "desc": "Booking channel: 'booking', 'airbnb', 'direct', etc. (optional)"},
+      {"name": "unit_id", "type": "number", "desc": "Specific unit ID within the room (optional)"},
+      {"name": "price", "type": "number", "desc": "Total booking price override (optional)"},
+      {"name": "commission", "type": "number", "desc": "Commission amount (optional)"},
+      {"name": "invoice_items", "type": "array", "desc": "Invoice items to attach: [{type, subType, description, qty, amount}] (optional)"},
       {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
     ]
   },
@@ -49,6 +61,7 @@
       {"name": "check_out", "type": "string", "desc": "Updated check-out date"},
       {"name": "special_requests", "type": "string", "desc": "Updated special requests"},
       {"name": "status", "type": "string", "desc": "Updated booking status"},
+      {"name": "invoice_items", "type": "array", "desc": "Invoice items to create or update: [{id?, type?, description?, qty?, amount?, lineTotal?}] — omit id to create new item (type required), include id to update existing"},
       {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
     ]
   },
@@ -58,6 +71,14 @@
     "arguments": [
       {"name": "booking_id", "type": "string", "desc": "The booking ID to cancel"},
       {"name": "cancellation_reason", "type": "string", "desc": "Reason for cancellation"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_delete_booking",
+    "description": "Permanently delete a booking from Beds24. This action cannot be undone.",
+    "arguments": [
+      {"name": "booking_id", "type": "string", "desc": "The booking ID to delete permanently"},
       {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
     ]
   },
@@ -93,11 +114,10 @@
     "name": "beds24_check_availability",
     "description": "Check room availability for specific dates and return available room options with pricing.",
     "arguments": [
-      {"name": "property_id", "type": "string", "desc": "The property ID to check"},
-      {"name": "check_in", "type": "string", "desc": "Check-in date (YYYY-MM-DD)"},
-      {"name": "check_out", "type": "string", "desc": "Check-out date (YYYY-MM-DD)"},
-      {"name": "room_type", "type": "string", "desc": "Specific room type to check (optional)"},
-      {"name": "number_of_guests", "type": "number", "desc": "Number of guests (default 1)"},
+      {"name": "property_id", "type": "string", "desc": "The property ID to check (required)"},
+      {"name": "start_date", "type": "string", "desc": "Start date of stay (YYYY-MM-DD, required)"},
+      {"name": "end_date", "type": "string", "desc": "End date of stay (YYYY-MM-DD, required)"},
+      {"name": "room_id", "type": "number", "desc": "Specific room ID to check (optional)"},
       {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
     ]
   },
@@ -105,24 +125,49 @@
     "name": "beds24_get_calendar",
     "description": "Get calendar values for rooms over a date range including prices, availability, and restrictions.",
     "arguments": [
-      {"name": "property_id", "type": "string", "desc": "The property ID"},
-      {"name": "room_id", "type": "string", "desc": "Specific room ID (optional)"},
-      {"name": "start_date", "type": "string", "desc": "Start date for calendar (YYYY-MM-DD)"},
-      {"name": "end_date", "type": "string", "desc": "End date for calendar (YYYY-MM-DD)"},
+      {"name": "property_id", "type": "string", "desc": "The property ID (required)"},
+      {"name": "start_date", "type": "string", "desc": "Start date for calendar (YYYY-MM-DD, required)"},
+      {"name": "end_date", "type": "string", "desc": "End date for calendar (YYYY-MM-DD, required)"},
+      {"name": "room_id", "type": "number", "desc": "Specific room ID (optional)"},
+      {"name": "include_num_avail", "type": "boolean", "desc": "Include number of available units (default true)"},
+      {"name": "include_min_stay", "type": "boolean", "desc": "Include minimum stay restrictions (default true)"},
+      {"name": "include_max_stay", "type": "boolean", "desc": "Include maximum stay restrictions (default true)"},
+      {"name": "include_multiplier", "type": "boolean", "desc": "Include price multipliers (default true)"},
+      {"name": "include_override", "type": "boolean", "desc": "Include price overrides (default true)"},
+      {"name": "include_prices", "type": "boolean", "desc": "Include base prices (default true)"},
+      {"name": "include_linked_prices", "type": "boolean", "desc": "Include linked/derived prices (default true)"},
+      {"name": "include_channels", "type": "boolean", "desc": "Include channel-specific data (default true)"},
       {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
     ]
   },
   {
     "name": "beds24_update_calendar",
-    "description": "Update calendar values for a specific date including price, availability, and stay restrictions.",
+    "description": "Batch update calendar values for one or more rooms over date ranges (price, availability, stay restrictions, channels).",
     "arguments": [
-      {"name": "property_id", "type": "string", "desc": "The property ID"},
-      {"name": "room_id", "type": "string", "desc": "Specific room ID (optional)"},
-      {"name": "date", "type": "string", "desc": "Date to update (YYYY-MM-DD)"},
-      {"name": "price", "type": "number", "desc": "Updated price for the date"},
-      {"name": "availability", "type": "boolean", "desc": "Availability status (true/false)"},
-      {"name": "minimum_stay", "type": "number", "desc": "Minimum stay requirement in nights"},
-      {"name": "maximum_stay", "type": "number", "desc": "Maximum stay limit in nights"},
+      {"name": "rooms", "type": "array", "desc": "Array of room updates: [{room_id, calendar: [{from, to, price1?, price2?, min_stay?, max_stay?, num_avail?, override?, channels?}]}]"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_get_bookings_by_master",
+    "description": "Get all bookings in a group by master booking ID. Multi-room bookings are grouped together.",
+    "arguments": [
+      {"name": "master_id", "type": "string", "desc": "The master booking ID to get all related bookings"},
+      {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
+    ]
+  },
+  {
+    "name": "beds24_setup_from_invite_code",
+    "description": "Setup authentication using an invite code from Beds24 to get refresh token.",
+    "arguments": [
+      {"name": "invite_code", "type": "string", "desc": "Invite code from Beds24 (https://beds24.com/control3.php?pagetype=apiv2)"},
+      {"name": "device_name", "type": "string", "desc": "Device name for the token (default: MCP Server)"}
+    ]
+  },
+  {
+    "name": "beds24_check_auth_status",
+    "description": "Check the current authentication status including refresh token and access token validity.",
+    "arguments": [
       {"name": "response_format", "type": "string", "desc": "Output format: 'markdown' or 'json'"}
     ]
   },

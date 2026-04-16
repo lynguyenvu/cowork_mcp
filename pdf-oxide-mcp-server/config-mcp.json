@@ -1,0 +1,28 @@
+{
+  "name": "pdf_oxide_mcp",
+  "description": "PDF Extraction MCP Server - Fast PDF library for text, markdown, HTML, and image extraction",
+  "version": "1.0.0",
+  "transport": {
+    "type": "stdio",
+    "command": "python3",
+    "args": ["/cowork_mcp/pdf-oxide-mcp-server/server.py"],
+    "env": {}
+  },
+  "http_transport": {
+    "type": "http",
+    "url": "http://localhost:8002/mcp",
+    "env": {}
+  },
+  "tools_file": "/cowork_mcp/pdf-oxide-mcp-server/tools.json",
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false
+  },
+  "tool_count": 8,
+  "categories": ["pdf", "extraction", "document-processing"],
+  "required_env_vars": [],
+  "optional_env_vars": [],
+  "documentation": "https://github.com/yfedoseev/pdf_oxide",
+  "setup_guide": "/cowork_mcp/pdf-oxide-mcp-server/README.md"
+}

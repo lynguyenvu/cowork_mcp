@@ -16,13 +16,13 @@ This folder contains the OpenClaw skill integration for Beds24 MCP server.
 ### Prerequisites
 
 - Docker and Docker Compose
-- Beds24 API token
+- Beds24 refresh token (recommended) or API token
 
 ### Setup
 
 1. Set environment variable:
 ```bash
-export BEDS24_API_TOKEN=your_api_token_here
+export BEDS24_REFRESH_TOKEN=your_refresh_token_here
 ```
 
 2. Start the stack:
@@ -34,7 +34,7 @@ docker compose up --build -d
 
 | Service | Port | Description |
 |---------|------|-------------|
-| beds24-mcp | 8761 | MCP server |
+| beds24-mcp | 8001 | MCP server |
 | beds24-mcp-gateway | 8767 | HTTP REST API |
 
 ### Endpoints
@@ -50,9 +50,20 @@ docker compose up --build -d
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BEDS24_API_TOKEN` | Yes | Beds24 API authentication token |
+| `BEDS24_REFRESH_TOKEN` | Yes* | Beds24 refresh token (auto-refreshes access token) |
+| `BEDS24_API_TOKEN` | Alt | Alternative: Long-life API token (read-only) |
 | `BEDS24_MCP_URL` | No | MCP server URL (default: http://beds24-mcp:8001) |
 | `GATEWAY_PORT` | No | Gateway port (default: 8767) |
+
+*Use refresh token for full read/write access. API token provides read-only access.
+
+## API Notes
+
+- **List bookings filters**: Use `arrival` and `departure` params (YYYY-MM-DD format)
+- **Get booking**: Uses query param `?id=xxx`, not path `/bookings/xxx`
+- **Pagination**: API returns max 100 per request; auto-pagination enabled up to 1000 records
+- **Response format**: `{success: true, data: [...], count: N}`
+- **Include params**: `includeInvoiceItems`, `includeInfoItems`, `includeBookingGroup` (default: true)
 
 ## Development
 
@@ -60,6 +71,13 @@ docker compose up --build -d
 
 ```bash
 docker compose up --build
+```
+
+### Test health
+
+```bash
+curl http://localhost:8001/health
+# Response: {"status": "ok", "server": "beds24-mcp"}
 ```
 
 ### Test gateway
@@ -72,10 +90,20 @@ curl http://localhost:8767/tools
 ### Test MCP tools via gateway
 
 ```bash
-# List bookings
+# List bookings with arrival filter
 curl -X POST http://localhost:8767/tools/beds24_list_bookings \
   -H "Content-Type: application/json" \
-  -d '{"limit": 10}'
+  -d '{"arrival": "2026-03-18", "limit": 5}'
+
+# List bookings with departure filter
+curl -X POST http://localhost:8767/tools/beds24_list_bookings \
+  -H "Content-Type: application/json" \
+  -d '{"departure": "2026-03-20", "limit": 5}'
+
+# Get booking by ID
+curl -X POST http://localhost:8767/tools/beds24_get_booking \
+  -H "Content-Type: application/json" \
+  -d '{"booking_id": "83868227"}'
 ```
 
 ## Files

@@ -1,0 +1,4 @@
+fastmcp
+pdf_oxide
+uvicorn
+pydantic

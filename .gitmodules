@@ -1,0 +1,3 @@
+[submodule "pancake-mcp-server"]
+	path = pancake-mcp-server
+	url = https://github.com/lynguyenvu/pancake-mcp-server.git

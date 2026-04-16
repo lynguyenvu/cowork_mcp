@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  vnstock-mcp:
+    build: .
+    container_name: vnstock-mcp-server
+    ports:
+      - "8002:8002"
+    environment:
+      - VNSTOCK_API_KEY=${VNSTOCK_API_KEY:-}
+      - VNSTOCK_SOURCE=${VNSTOCK_SOURCE:-VCI}
+      - VNSTOCK_MCP_HOST=0.0.0.0
+      - VNSTOCK_MCP_PORT=8002
+      - MCP_ACCESS_TOKEN=${MCP_ACCESS_TOKEN:-}
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID:-}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET:-}
+      - PUBLIC_URL=${PUBLIC_URL:-https://stock.the-emer.com}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

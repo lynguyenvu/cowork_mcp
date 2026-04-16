@@ -149,10 +149,59 @@ async def root():
         "mcp_url": MCP_URL,
         "endpoints": [
             "/health",
+            "/mcp",
             "/tools",
             "/tools/{tool_name}"
         ]
     }
+
+
+@app.post("/mcp")
+async def mcp_endpoint(request: Request):
+    """Raw MCP protocol endpoint for GoClaw integration."""
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
+
+    try:
+        body = await request.json()
+        logger.info(f"Received MCP request: {body.get('method')} (id: {body.get('id')})")
+        print(f"[Gateway] MCP request: {body.get('method')} id={body.get('id')}", flush=True)
+
+        async with httpx.AsyncClient() as client:
+            headers = {
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json"
+            }
+
+            if _mcp_session_id:
+                headers["mcp-session-id"] = _mcp_session_id
+
+            print(f"[Gateway] Forwarding to {MCP_URL}/mcp", flush=True)
+            response = await client.post(
+                f"{MCP_URL}/mcp",
+                json=body,
+                headers=headers,
+                timeout=30.0
+            )
+            print(f"[Gateway] Response status: {response.status_code}", flush=True)
+
+            # Forward response
+            resp_body = response.json()
+            print(f"[Gateway] Response body: {resp_body}", flush=True)
+            return JSONResponse(
+                content=resp_body,
+                status_code=response.status_code
+            )
+
+    except Exception as e:
+        print(f"[Gateway] Error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            content={"error": str(e), "jsonrpc": "2.0", "id": body.get('id') if 'body' in dir() else None},
+            status_code=500
+        )
 
 
 @app.get("/tools")

@@ -176,6 +176,9 @@ async def _make_api_request(
             **kwargs
         )
         response.raise_for_status()
+        # Handle empty response bodies (e.g. 204 No Content)
+        if not response.content or response.status_code == 204:
+            return {}
         return response.json()
 
 
@@ -239,9 +242,9 @@ class ListBookingsInput(BaseModel):
     )
     limit: Optional[int] = Field(
         default=20,
-        description="Maximum number of bookings to return (range: 1-1000)",
+        description="Maximum number of bookings to return (range: 1-300)",
         ge=1,
-        le=1000
+        le=300
     )
     offset: Optional[int] = Field(
         default=0,
@@ -257,12 +260,16 @@ class ListBookingsInput(BaseModel):
         description="Include invoice items in response (default: true)"
     )
     include_info_items: Optional[bool] = Field(
-        default=True,
-        description="Include info items in response (default: true)"
+        default=False,
+        description="Include info items in response (default: false, set true for extra info fields)"
     )
     include_booking_group: Optional[bool] = Field(
         default=True,
         description="Include booking group data in response (default: true)"
+    )
+    compact: Optional[bool] = Field(
+        default=True,
+        description="Return compact response with essential fields only (id, status, arrival, departure, propertyId, unitId, totalPrice, currency, invoiceItems, bookingGroup). Default: true. Set false only when full raw booking data is needed."
     )
 
 
@@ -286,6 +293,69 @@ class GetBookingInput(BaseModel):
     )
 
 
+class GetBookingsByMasterInput(BaseModel):
+    """Input model for getting all bookings in a group by master ID."""
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra='forbid'
+    )
+
+    master_id: str = Field(
+        ...,
+        description="The master booking ID to get all related bookings in the group",
+        min_length=1,
+        max_length=100
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for human-readable or 'json' for machine-readable"
+    )
+
+
+class InvoiceItemInput(BaseModel):
+    """Single invoice item (charge or payment) to attach to a booking."""
+    model_config = ConfigDict(extra='forbid')
+
+    type: str = Field(
+        ...,
+        description="Item type: 'charge' or 'payment'",
+    )
+    sub_type: Optional[int] = Field(
+        default=None,
+        description="Sub-type code (e.g., 8 for Cancel Fee, 200 for Cash payment)",
+        alias="subType"
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Human-readable description of the item",
+        max_length=200
+    )
+    qty: Optional[int] = Field(
+        default=1,
+        description="Quantity (for charge items)",
+        ge=1
+    )
+    amount: float = Field(
+        ...,
+        description="Unit amount (positive for charges, can be negative for payments)"
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class InvoiceItemUpdateInput(BaseModel):
+    """Invoice item for update or create — omit id to create a new item, include id to update existing."""
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
+
+    id: Optional[int] = Field(default=None, description="Invoice item ID — omit to create new, provide to update existing")
+    type: Optional[str] = Field(default=None, description="Item type: 'charge' or 'payment' (required when creating new item)")
+    description: Optional[str] = Field(default=None, description="Item description (e.g. '[ROOMNAME1]*')")
+    qty: Optional[int] = Field(default=None, description="Quantity", ge=1)
+    amount: Optional[float] = Field(default=None, description="Unit amount")
+    line_total: Optional[float] = Field(default=None, description="Line total", alias="lineTotal")
+
+
 class CreateBookingInput(BaseModel):
     """Input model for creating a new booking."""
     model_config = ConfigDict(
@@ -294,68 +364,120 @@ class CreateBookingInput(BaseModel):
         extra='forbid'
     )
 
-    property_id: str = Field(
+    room_id: int = Field(
         ...,
-        description="The property ID where booking will be created (e.g., '12345')",
-        min_length=1,
-        max_length=50
+        description="Beds24 room ID to book (e.g., 1234567)",
     )
-    room_id: Optional[str] = Field(
+    status: Optional[str] = Field(
+        default="confirmed",
+        description="Booking status: 'confirmed', 'provisional', 'cancelled', etc.",
+    )
+    arrival: str = Field(
+        ...,
+        description="Arrival (check-in) date (format: YYYY-MM-DD, e.g., '2024-03-15')",
+        pattern=r"^\d{4}-\d{2}-\d{2}$"
+    )
+    departure: str = Field(
+        ...,
+        description="Departure (check-out) date (format: YYYY-MM-DD, e.g., '2024-03-20')",
+        pattern=r"^\d{4}-\d{2}-\d{2}$"
+    )
+    num_adult: Optional[int] = Field(
+        default=1,
+        description="Number of adults (must be >= 1)",
+        ge=1
+    )
+    num_child: Optional[int] = Field(
+        default=0,
+        description="Number of children (must be >= 0)",
+        ge=0
+    )
+    title: Optional[str] = Field(
         default=None,
-        description="Specific room ID to book (e.g., 'ROOM-123'). If not provided, system will assign available room.",
+        description="Guest title (e.g., 'Mr', 'Mrs', 'Ms', 'Dr')",
+        max_length=20
+    )
+    first_name: str = Field(
+        ...,
+        description="Guest's first name (e.g., 'John')",
         min_length=1,
         max_length=100
     )
-    check_in: str = Field(
+    last_name: str = Field(
         ...,
-        description="Check-in date (format: YYYY-MM-DD, e.g., '2024-03-15')",
-        pattern=r"^\d{4}-\d{2}-\d{2}$"
-    )
-    check_out: str = Field(
-        ...,
-        description="Check-out date (format: YYYY-MM-DD, e.g., '2024-03-20')",
-        pattern=r"^\d{4}-\d{2}-\d{2}$"
-    )
-    guest_name: str = Field(
-        ...,
-        description="Guest's full name (e.g., 'John Doe', 'Jane Smith')",
+        description="Guest's last name / surname (e.g., 'Doe')",
         min_length=1,
-        max_length=200
+        max_length=100
     )
-    guest_email: str = Field(
+    email: str = Field(
         ...,
         description="Guest's email address (e.g., 'john@example.com')",
         pattern=r'^[\w\.-]+@[\w\.-]+\.\w+$'
     )
-    guest_phone: Optional[str] = Field(
+    phone: Optional[str] = Field(
         default=None,
-        description="Guest's phone number (e.g., '+1234567890')",
-        min_length=1,
+        description="Guest's phone number (e.g., '+49 176 39637463')",
         max_length=50
     )
-    number_of_guests: Optional[int] = Field(
-        default=1,
-        description="Number of guests (must be >= 1)",
-        ge=1
-    )
-    special_requests: Optional[str] = Field(
+    address: Optional[str] = Field(
         default=None,
-        description="Special requests or notes from guest (e.g., 'High floor room preferred', 'Allergy to pets')",
-        max_length=1000
+        description="Guest's street address",
+        max_length=200
+    )
+    city: Optional[str] = Field(
+        default=None,
+        description="Guest's city",
+        max_length=100
+    )
+    state: Optional[str] = Field(
+        default=None,
+        description="Guest's state/province",
+        max_length=100
+    )
+    postcode: Optional[str] = Field(
+        default=None,
+        description="Guest's postcode/zip code",
+        max_length=20
+    )
+    country: Optional[str] = Field(
+        default=None,
+        description="Guest's country (e.g., 'Australia', 'Vietnam')",
+        max_length=100
+    )
+    channel: Optional[str] = Field(
+        default=None,
+        description="Booking channel (e.g., 'booking', 'airbnb', 'direct')",
+        max_length=50
+    )
+    unit_id: Optional[int] = Field(
+        default=None,
+        description="Specific unit ID within the room (for multi-unit rooms)"
+    )
+    price: Optional[float] = Field(
+        default=None,
+        description="Total booking price override"
+    )
+    commission: Optional[float] = Field(
+        default=None,
+        description="Commission amount"
+    )
+    invoice_items: Optional[List[InvoiceItemInput]] = Field(
+        default=None,
+        description="Invoice items (charges and payments) to attach to the booking"
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' for human-readable or 'json' for machine-readable"
     )
 
-    @field_validator('check_out')
+    @field_validator('departure')
     @classmethod
     def validate_dates(cls, v: str, info) -> str:
-        """Validate that check-out is after check-in."""
-        check_in = info.data.get('check_in')
-        if check_in and v:
-            if v <= check_in:
-                raise ValueError("Check-out date must be after check-in date")
+        """Validate that departure is after arrival."""
+        arrival = info.data.get('arrival')
+        if arrival and v:
+            if v <= arrival:
+                raise ValueError("Departure date must be after arrival date")
         return v
 
 
@@ -416,6 +538,10 @@ class UpdateBookingInput(BaseModel):
         min_length=1,
         max_length=50
     )
+    invoice_items: Optional[List[InvoiceItemUpdateInput]] = Field(
+        default=None,
+        description="Invoice items to update — each item requires id, and optionally qty and/or amount"
+    )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' for human-readable or 'json' for machine-readable"
@@ -440,6 +566,26 @@ class CancelBookingInput(BaseModel):
         default=None,
         description="Reason for cancellation (e.g., 'Guest request', 'Double booking')",
         max_length=500
+    )
+    response_format: ResponseFormat = Field(
+        default=ResponseFormat.MARKDOWN,
+        description="Output format: 'markdown' for human-readable or 'json' for machine-readable"
+    )
+
+
+class DeleteBookingInput(BaseModel):
+    """Input model for deleting a booking."""
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        validate_assignment=True,
+        extra='forbid'
+    )
+
+    booking_id: str = Field(
+        ...,
+        description="The booking ID to delete permanently (e.g., 'BOOK-12345')",
+        min_length=1,
+        max_length=100
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
@@ -602,44 +748,37 @@ class CheckAvailabilityInput(BaseModel):
 
     property_id: str = Field(
         ...,
-        description="The property ID to check availability for (e.g., '12345')",
+        description="The property ID to check availability for (e.g., '322626')",
         min_length=1,
         max_length=100
     )
-    check_in: str = Field(
-        ...,
-        description="Check-in date (format: YYYY-MM-DD, e.g., '2024-03-15')",
-        pattern=r"^\d{4}-\d{2}-\d{2}$"
-    )
-    check_out: str = Field(
-        ...,
-        description="Check-out date (format: YYYY-MM-DD, e.g., '2024-03-20')",
-        pattern=r"^\d{4}-\d{2}-\d{2}$"
-    )
-    room_type: Optional[str] = Field(
+    room_id: Optional[int] = Field(
         default=None,
-        description="Specific room type to check (e.g., 'deluxe', 'standard'). If not provided, checks all room types.",
-        min_length=1,
-        max_length=100
+        description="Specific room ID to check (e.g., 124124). If not provided, checks all rooms.",
     )
-    number_of_guests: Optional[int] = Field(
-        default=1,
-        description="Number of guests (must be >= 1)",
-        ge=1
+    start_date: str = Field(
+        ...,
+        description="Start date of stay (format: YYYY-MM-DD, e.g., '2026-06-15')",
+        pattern=r"^\d{4}-\d{2}-\d{2}$"
+    )
+    end_date: str = Field(
+        ...,
+        description="End date of stay (format: YYYY-MM-DD, e.g., '2026-06-20')",
+        pattern=r"^\d{4}-\d{2}-\d{2}$"
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' for human-readable or 'json' for machine-readable"
     )
 
-    @field_validator('check_out')
+    @field_validator('end_date')
     @classmethod
     def validate_dates(cls, v: str, info) -> str:
-        """Validate that check-out is after check-in."""
-        check_in = info.data.get('check_in')
-        if check_in and v:
-            if v <= check_in:
-                raise ValueError("Check-out date must be after check-in date")
+        """Validate that end_date is after start_date."""
+        start_date = info.data.get('start_date')
+        if start_date and v:
+            if v <= start_date:
+                raise ValueError("End date must be after start date")
         return v
 
 
@@ -653,75 +792,82 @@ class GetCalendarInput(BaseModel):
 
     property_id: str = Field(
         ...,
-        description="The property ID (e.g., '12345')",
+        description="The property ID (e.g., '151551')",
         min_length=1,
         max_length=100
     )
-    room_id: Optional[str] = Field(
+    room_id: Optional[int] = Field(
         default=None,
-        description="Specific room ID. If not provided, returns calendar for all rooms in property.",
-        min_length=1,
-        max_length=100
+        description="Specific room ID (e.g., 1515151). If not provided, returns all rooms.",
     )
     start_date: str = Field(
         ...,
-        description="Start date for calendar (format: YYYY-MM-DD, e.g., '2024-03-01')",
+        description="Start date for calendar (format: YYYY-MM-DD, e.g., '2025-03-01')",
         pattern=r"^\d{4}-\d{2}-\d{2}$"
     )
     end_date: str = Field(
         ...,
-        description="End date for calendar (format: YYYY-MM-DD, e.g., '2024-03-31')",
+        description="End date for calendar (format: YYYY-MM-DD, e.g., '2025-03-31')",
         pattern=r"^\d{4}-\d{2}-\d{2}$"
     )
+    # Include flags — all default True for full calendar data
+    include_num_avail: bool = Field(default=True, description="Include number of available units")
+    include_min_stay: bool = Field(default=True, description="Include minimum stay restrictions")
+    include_max_stay: bool = Field(default=True, description="Include maximum stay restrictions")
+    include_multiplier: bool = Field(default=True, description="Include price multipliers")
+    include_override: bool = Field(default=True, description="Include price overrides")
+    include_prices: bool = Field(default=True, description="Include base prices")
+    include_linked_prices: bool = Field(default=True, description="Include linked/derived prices")
+    include_channels: bool = Field(default=True, description="Include channel-specific data")
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
         description="Output format: 'markdown' for human-readable or 'json' for machine-readable"
     )
 
 
-class UpdateCalendarInput(BaseModel):
-    """Input model for updating calendar values."""
-    model_config = ConfigDict(
-        str_strip_whitespace=True,
-        validate_assignment=True,
-        extra='forbid'
-    )
+class CalendarRangeInput(BaseModel):
+    """A single date-range entry in a calendar update."""
+    model_config = ConfigDict(extra='forbid', populate_by_name=True)
 
-    property_id: str = Field(
+    from_date: str = Field(
         ...,
-        description="The property ID (e.g., '12345')",
-        min_length=1,
-        max_length=100
-    )
-    room_id: Optional[str] = Field(
-        default=None,
-        description="Specific room ID to update. If not provided, updates apply to all rooms.",
-        min_length=1,
-        max_length=100
-    )
-    date: str = Field(
-        ...,
-        description="Date to update (format: YYYY-MM-DD, e.g., '2024-03-15')",
+        alias="from",
+        description="Start date of the range (YYYY-MM-DD)",
         pattern=r"^\d{4}-\d{2}-\d{2}$"
     )
-    price: Optional[float] = Field(
-        default=None,
-        description="Updated price for the date (e.g., 149.99, 200.00)",
-        ge=0
+    to_date: str = Field(
+        ...,
+        alias="to",
+        description="End date of the range (YYYY-MM-DD, inclusive)",
+        pattern=r"^\d{4}-\d{2}-\d{2}$"
     )
-    availability: Optional[bool] = Field(
+    price1: Optional[float] = Field(default=None, description="Primary price (e.g., base rate)", ge=0)
+    price2: Optional[float] = Field(default=None, description="Secondary price (e.g., extra guest rate)", ge=0)
+    min_stay: Optional[int] = Field(default=None, description="Minimum stay in nights", ge=1)
+    max_stay: Optional[int] = Field(default=None, description="Maximum stay in nights", ge=1)
+    num_avail: Optional[int] = Field(default=None, description="Number of available units", ge=0)
+    override: Optional[str] = Field(default=None, description="Override type (e.g., 'blackout')")
+    channels: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Set availability status: true = available, false = not available"
+        description='Channel-specific settings, e.g. {"airbnb": {"maxBookings": 4}}'
     )
-    minimum_stay: Optional[int] = Field(
-        default=None,
-        description="Minimum stay requirement in nights (must be >= 1)",
-        ge=1
-    )
-    maximum_stay: Optional[int] = Field(
-        default=None,
-        description="Maximum stay limit in nights (must be >= 1)",
-        ge=1
+
+
+class RoomCalendarUpdate(BaseModel):
+    """Calendar updates for a single room."""
+    model_config = ConfigDict(extra='forbid')
+
+    room_id: int = Field(..., description="Beds24 room ID to update")
+    calendar: List[CalendarRangeInput] = Field(..., description="List of date-range update entries")
+
+
+class UpdateCalendarInput(BaseModel):
+    """Input model for updating calendar values (batch: multiple rooms × date ranges)."""
+    model_config = ConfigDict(extra='forbid')
+
+    rooms: List[RoomCalendarUpdate] = Field(
+        ...,
+        description="List of room calendar updates. Each entry has a roomId and calendar array."
     )
     response_format: ResponseFormat = Field(
         default=ResponseFormat.MARKDOWN,
@@ -1149,19 +1295,28 @@ async def beds24_list_bookings(params: ListBookingsInput) -> str:
         if params.include_booking_group:
             query_params['includeBookingGroup'] = 'true'
 
-        # Fetch all bookings with pagination support
-        # API returns max 100 per page, so we need to fetch multiple pages if needed
+        # Fetch bookings using API-level pagination
+        # Beds24 API uses 1-indexed page numbers, 100 records/page
+        # Convert offset to start page + in-page skip to avoid re-fetching from page 1
+        offset = params.offset or 0
+        limit = params.limit or 20
+        PAGE_SIZE = 100
+
+        start_page = (offset // PAGE_SIZE) + 1
+        skip_in_page = offset % PAGE_SIZE
+
+        # Cap limit to 300 to avoid excessive API calls (3 pages × 100 records)
+        limit = min(limit, 300)
+
         all_bookings = []
-        page = 1
-        max_pages = 10  # Safety limit to prevent infinite loops
-        # Calculate desired limit including offset to support proper pagination
-        desired_limit = (params.offset or 0) + (params.limit or 100)
+        page = start_page
+        max_pages = start_page + 2  # Allow up to 3 API calls from start page (~90s max)
         api_has_more = False
         api_total = None
 
-        while len(all_bookings) < desired_limit and page <= max_pages:
+        while len(all_bookings) < (skip_in_page + limit) and page <= max_pages:
             query_params['page'] = page
-            query_params['limit'] = min(100, desired_limit - len(all_bookings))
+            query_params['limit'] = PAGE_SIZE
 
             data = await _make_api_request("bookings", params=query_params)
 
@@ -1171,36 +1326,42 @@ async def beds24_list_bookings(params: ListBookingsInput) -> str:
 
             all_bookings.extend(bookings_page)
 
-            # Save API pagination info from last response
             api_has_more = data.get('pages', {}).get('nextPageExists', False)
-            api_total = data.get('count')  # Total matching filters from API
+            api_total = data.get('count')
 
-            # Check if there's a next page
             if not api_has_more:
                 break
 
             page += 1
 
-        # Apply offset and limit slicing
-        offset = params.offset or 0
-        limit = params.limit or len(all_bookings)
+        # Slice: skip in-page offset, then take limit
+        bookings = all_bookings[skip_in_page:skip_in_page + limit]
         total_fetched = len(all_bookings)
-        bookings = all_bookings[offset:offset + limit]
-
-        # Calculate has_more based on API response, not just fetched data
-        remaining_after_slice = total_fetched > offset + len(bookings)
+        remaining_after_slice = total_fetched > skip_in_page + len(bookings)
         has_more = api_has_more or remaining_after_slice
 
         if not bookings:
             return "No bookings found matching criteria"
 
-        # Use API total if available, otherwise use fetched count
-        total_count = api_total if api_total is not None else total_fetched
+        # Beds24 API 'count' = records on current page, NOT global total.
+        # Total is only accurate when we've reached the last page (has_more=False).
+        if not has_more:
+            total_count = offset + len(all_bookings)  # offset before + all we fetched = exact total
+        else:
+            total_count = None  # Unknown — more pages exist
+
+        # Apply compact mode: strip to essential fields only
+        COMPACT_FIELDS = {"id", "status", "arrival", "departure", "propertyId",
+                          "unitId", "totalPrice", "currency",
+                          "invoiceItems", "bookingGroup"}
+        if params.compact:
+            bookings = [{k: v for k, v in b.items() if k in COMPACT_FIELDS} for b in bookings]
 
         # Format response
+        total_label = str(total_count) if total_count is not None else "unknown (more pages exist)"
         if params.response_format == ResponseFormat.MARKDOWN:
             lines = ["# Booking List", ""]
-            lines.append(f"Total bookings: {total_count} (showing {len(bookings)} from offset {offset})")
+            lines.append(f"Total bookings: {total_label} (showing {len(bookings)} from offset {offset})")
             lines.append("")
 
             if has_more:
@@ -1214,7 +1375,7 @@ async def beds24_list_bookings(params: ListBookingsInput) -> str:
         else:
             # JSON format
             response = {
-                "total": total_count,
+                "total": total_count,       # null when has_more=true (unknown), exact count when has_more=false
                 "count": len(bookings),
                 "offset": offset,
                 "has_more": has_more,
@@ -1334,7 +1495,12 @@ async def beds24_get_booking(params: GetBookingInput) -> str:
     """
     try:
         # Make API request - Beds24 uses query param "id" not path param
-        booking_data = await _make_api_request("bookings", params={"id": params.booking_id})
+        # Include invoice items for complete booking details
+        booking_data = await _make_api_request("bookings", params={
+            "id": params.booking_id,
+            "includeInvoiceItems": "true",
+            "includeInfoItems": "true"
+        })
 
         # API returns {success: true, data: [...], count: 1}
         if isinstance(booking_data, dict) and 'data' in booking_data:
@@ -1352,6 +1518,73 @@ async def beds24_get_booking(params: GetBookingInput) -> str:
             result = json.dumps(booking, indent=2)
 
         return result
+
+    except Exception as e:
+        return _handle_api_error(e)
+
+
+@mcp.tool(
+    name="beds24_get_bookings_by_master",
+    annotations={
+        "title": "Get Bookings by Master ID",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True
+    }
+)
+async def beds24_get_bookings_by_master(params: GetBookingsByMasterInput) -> str:
+    """
+    Get all bookings in a group by master booking ID.
+
+    In Beds24, multi-room bookings are grouped together with a master booking ID.
+    This tool retrieves all bookings that belong to the same group.
+
+    Args:
+        params (GetBookingsByMasterInput): Validated input parameters containing:
+            - master_id (str): The master booking ID
+            - response_format (ResponseFormat): Output format (default: markdown)
+
+    Returns:
+        str: Formatted response containing all bookings in the group.
+
+    Example:
+        beds24_get_bookings_by_master(master_id="84062771")
+    """
+    try:
+        # Query bookings by masterId
+        booking_data = await _make_api_request("bookings", params={
+            "masterId": params.master_id,
+            "includeInvoiceItems": "true",
+            "includeInfoItems": "true",
+            "includeBookingGroup": "true"
+        })
+
+        # API returns {success: true, data: [...], count: N}
+        if isinstance(booking_data, dict) and 'data' in booking_data:
+            bookings = booking_data.get('data', [])
+            if not bookings:
+                return f"No bookings found with master ID: {params.master_id}"
+
+            if params.response_format == ResponseFormat.MARKDOWN:
+                lines = [f"## Booking Group (Master ID: {params.master_id})", ""]
+                lines.append(f"**Total bookings in group:** {len(bookings)}")
+                lines.append("")
+                lines.append("---")
+                for booking in bookings:
+                    lines.append(_format_markdown_booking(booking))
+                    lines.append("---")
+                    lines.append("")
+                result = "\n".join(lines)
+            else:
+                result = json.dumps({
+                    "master_id": params.master_id,
+                    "count": len(bookings),
+                    "bookings": bookings
+                }, indent=2)
+            return result
+        else:
+            return json.dumps(booking_data, indent=2)
 
     except Exception as e:
         return _handle_api_error(e)
@@ -1376,15 +1609,18 @@ async def beds24_create_booking(params: CreateBookingInput) -> str:
 
     Args:
         params (CreateBookingInput): Validated input parameters containing:
-            - property_id (str): Property ID where booking will be created (required)
-            - room_id (Optional[str]): Specific room ID to book (optional)
-            - check_in (str): Check-in date (YYYY-MM-DD, required)
-            - check_out (str): Check-out date (YYYY-MM-DD, required)
-            - guest_name (str): Guest's full name (required)
-            - guest_email (str): Guest's email address (required)
-            - guest_phone (Optional[str]): Guest's phone number
-            - number_of_guests (Optional[int]): Number of guests (default: 1)
-            - special_requests (Optional[str]): Special requests or notes
+            - room_id (int): Beds24 room ID (required)
+            - arrival (str): Arrival/check-in date (YYYY-MM-DD, required)
+            - departure (str): Departure/check-out date (YYYY-MM-DD, required)
+            - first_name (str): Guest's first name (required)
+            - last_name (str): Guest's last name (required)
+            - email (str): Guest's email address (required)
+            - status (Optional[str]): Booking status (default: 'confirmed')
+            - num_adult (Optional[int]): Number of adults (default: 1)
+            - num_child (Optional[int]): Number of children (default: 0)
+            - title (Optional[str]): Guest title (Mr/Mrs/Ms/Dr)
+            - mobile (Optional[str]): Guest's phone number
+            - address/city/state/postcode/country (Optional[str]): Guest address fields
             - response_format (ResponseFormat): Output format (default: markdown)
 
     Returns:
@@ -1392,15 +1628,13 @@ async def beds24_create_booking(params: CreateBookingInput) -> str:
 
         Success response (JSON format):
         {
-            "id": str,                    # New booking ID
-            "status": str,                # Booking status (typically 'confirmed' or 'pending')
-            "booking_reference": str,     # Booking reference number
-            "check_in": str,              # Check-in date
-            "check_out": str,             # Check-out date
-            "guest_name": str,            # Guest name
-            "property_id": str,           # Property ID
-            "room_id": Optional[str],     # Assigned room ID
-            "total_price": float,         # Calculated total price
+            "id": int,                    # New booking ID
+            "status": str,                # Booking status
+            "arrival": str,               # Arrival date
+            "departure": str,             # Departure date
+            "firstName": str,             # Guest first name
+            "lastName": str,              # Guest last name
+            "roomId": int,                # Room ID
             "message": str                # Success message
         }
 
@@ -1418,44 +1652,72 @@ async def beds24_create_booking(params: CreateBookingInput) -> str:
         - Returns formatted booking confirmation or error message
     """
     try:
-        # Build booking data
-        booking_data = {
-            "propertyId": params.property_id,
-            "checkIn": params.check_in,
-            "checkOut": params.check_out,
-            "guest": {
-                "name": params.guest_name,
-                "email": params.guest_email
-            },
-            "numberOfGuests": params.number_of_guests
+        # Build booking data matching Beds24 v2 API structure
+        booking_data: Dict[str, Any] = {
+            "roomId": params.room_id,
+            "arrival": params.arrival,
+            "departure": params.departure,
+            "firstName": params.first_name,
+            "lastName": params.last_name,
+            "email": params.email,
+            "numAdult": params.num_adult,
+            "numChild": params.num_child,
         }
 
-        if params.room_id:
-            booking_data['roomId'] = params.room_id
-        if params.guest_phone:
-            booking_data['guest']['phone'] = params.guest_phone
-        if params.special_requests:
-            booking_data['specialRequests'] = params.special_requests
+        # Optional scalar fields
+        optional_fields = {
+            "status": params.status,
+            "title": params.title,
+            "phone": params.phone,
+            "address": params.address,
+            "city": params.city,
+            "state": params.state,
+            "postcode": params.postcode,
+            "country": params.country,
+            "channel": params.channel,
+            "unitId": params.unit_id,
+            "price": params.price,
+            "commission": params.commission,
+        }
+        for key, val in optional_fields.items():
+            if val is not None:
+                booking_data[key] = val
 
-        # Make API request
-        result = await _make_api_request("bookings", method="POST", json_data=booking_data)
+        # Invoice items
+        if params.invoice_items:
+            booking_data['invoiceItems'] = [
+                {k: v for k, v in {
+                    "type": item.type,
+                    "subType": item.sub_type,
+                    "description": item.description,
+                    "qty": item.qty,
+                    "amount": item.amount,
+                }.items() if v is not None}
+                for item in params.invoice_items
+            ]
+
+        # Make API request - Beds24 expects array
+        result = await _make_api_request("bookings", method="POST", json_data=[booking_data])
+
+        # Handle array response - extract first item
+        if isinstance(result, list) and len(result) > 0:
+            result = result[0]
 
         # Format response
         if params.response_format == ResponseFormat.MARKDOWN:
             booking_id = result.get('id', 'N/A')
-            status = result.get('status', 'confirmed')
-            total_price = result.get('totalPrice', 'N/A')
+            status = result.get('status', params.status or 'confirmed')
+            guest_name = f"{params.first_name} {params.last_name}".strip()
 
             lines = [
-                f"## ✅ Booking Created Successfully",
+                "## Booking Created Successfully",
                 "",
                 f"**Booking ID:** {booking_id}",
                 f"**Status:** {status}",
-                f"**Check-in:** {params.check_in}",
-                f"**Check-out:** {params.check_out}",
-                f"**Guest:** {params.guest_name}",
-                f"**Property ID:** {params.property_id}",
-                f"**Total Price:** {total_price}",
+                f"**Arrival:** {params.arrival}",
+                f"**Departure:** {params.departure}",
+                f"**Guest:** {guest_name}",
+                f"**Room ID:** {params.room_id}",
                 "",
                 "The booking has been created and confirmed in the system."
             ]
@@ -1498,6 +1760,12 @@ async def beds24_update_booking(params: UpdateBookingInput) -> str:
             - check_out (Optional[str]): Updated check-out date (YYYY-MM-DD)
             - special_requests (Optional[str]): Updated special requests
             - status (Optional[str]): Updated booking status
+            - invoice_items (Optional[List]): Create or update invoice items.
+                Each item: {id?, type?, description?, qty?, amount?, lineTotal?}
+                - Omit 'id' to CREATE a new item (type required: 'charge' or 'payment')
+                - Include 'id' to UPDATE an existing item
+                Example: [{"id": 153898114, "qty": 2, "amount": 500000}]
+                Example: [{"type": "charge", "description": "Extra fee", "qty": 1, "amount": 100000}]
             - response_format (ResponseFormat): Output format (default: markdown)
 
     Returns:
@@ -1527,34 +1795,52 @@ async def beds24_update_booking(params: UpdateBookingInput) -> str:
     """
     try:
         # Build update data (only include provided fields)
-        update_data = {}
+        # Beds24 v2: update via POST /bookings with id in body
+        update_data = {"id": params.booking_id}
 
-        if params.guest_name or params.guest_email or params.guest_phone:
-            update_data['guest'] = {}
-            if params.guest_name:
-                update_data['guest']['name'] = params.guest_name
-            if params.guest_email:
-                update_data['guest']['email'] = params.guest_email
-            if params.guest_phone:
-                update_data['guest']['phone'] = params.guest_phone
+        # Beds24 API uses flat fields: firstName, lastName, email, phone (not nested guest object)
+        if params.guest_name:
+            name_parts = params.guest_name.strip().split(' ', 1)
+            update_data['firstName'] = name_parts[0]
+            if len(name_parts) > 1:
+                update_data['lastName'] = name_parts[1]
+        if params.guest_email:
+            update_data['email'] = params.guest_email
+        if params.guest_phone:
+            update_data['phone'] = params.guest_phone
 
         if params.number_of_guests is not None:
             update_data['numberOfGuests'] = params.number_of_guests
         if params.check_in:
-            update_data['checkIn'] = params.check_in
+            update_data['arrival'] = params.check_in
         if params.check_out:
-            update_data['checkOut'] = params.check_out
+            update_data['departure'] = params.check_out
         if params.special_requests:
-            update_data['specialRequests'] = params.special_requests
+            update_data['infoItems'] = [{"code": "NOTES", "text": params.special_requests}]
         if params.status:
             update_data['status'] = params.status
+        if params.invoice_items:
+            update_data['invoiceItems'] = [
+                {k: v for k, v in {
+                    "id": item.id,
+                    "description": item.description,
+                    "qty": item.qty,
+                    "amount": item.amount,
+                    "lineTotal": item.line_total
+                }.items() if v is not None}
+                for item in params.invoice_items
+            ]
 
-        # Make API request
+        # Make API request - send as array
         result = await _make_api_request(
-            f"bookings/{params.booking_id}",
-            method="POST",  # Beds24 uses POST for updates
-            json_data=update_data
+            "bookings",
+            method="POST",
+            json_data=[update_data]
         )
+
+        # Handle array response - extract first item
+        if isinstance(result, list) and len(result) > 0:
+            result = result[0]
 
         # Format response
         if params.response_format == ResponseFormat.MARKDOWN:
@@ -1589,6 +1875,8 @@ async def beds24_update_booking(params: UpdateBookingInput) -> str:
                 updated_fields.append("Special requests")
             if params.status:
                 updated_fields.append("Booking status")
+            if params.invoice_items:
+                updated_fields.append(f"Invoice items ({len(params.invoice_items)} item(s))")
 
             for field in updated_fields:
                 lines.append(f"- ✅ {field}")
@@ -1601,7 +1889,7 @@ async def beds24_update_booking(params: UpdateBookingInput) -> str:
             result['updated_fields'] = [
                 k for k in ['guest_name', 'guest_email', 'guest_phone',
                            'number_of_guests', 'check_in', 'check_out',
-                           'special_requests', 'status']
+                           'special_requests', 'status', 'invoice_items']
                 if getattr(params, k) is not None
             ]
             result['message'] = 'Booking updated successfully'
@@ -1618,7 +1906,7 @@ async def beds24_update_booking(params: UpdateBookingInput) -> str:
     annotations={
         "title": "Cancel Booking",
         "readOnlyHint": False,
-        "destructiveHint": True,
+        "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": True
     }
@@ -1666,22 +1954,29 @@ async def beds24_cancel_booking(params: CancelBookingInput) -> str:
         - Returns formatted cancellation confirmation or error message
     """
     try:
-        # Build cancellation data
-        cancel_data = {}
+        # Beds24 v2: cancel by updating status to "cancelled" via POST /bookings
+        cancel_data = {
+            "id": params.booking_id,
+            "status": "cancelled"
+        }
         if params.cancellation_reason:
-            cancel_data['cancellationReason'] = params.cancellation_reason
+            cancel_data['infoItems'] = [{"code": "NOTES", "text": f"Cancellation: {params.cancellation_reason}"}]
 
-        # Make API request
+        # Make API request - send as array
         result = await _make_api_request(
-            f"bookings/{params.booking_id}",
-            method="DELETE",
-            json_data=cancel_data if cancel_data else None
+            "bookings",
+            method="POST",
+            json_data=[cancel_data]
         )
+
+        # Handle array response - extract first item
+        if isinstance(result, list) and len(result) > 0:
+            result = result[0]
 
         # Format response
         if params.response_format == ResponseFormat.MARKDOWN:
-            booking_id = result.get('id', params.booking_id)
-            refund_amount = result.get('refundAmount', 0)
+            booking_id = result.get('id', params.booking_id) if isinstance(result, dict) else params.booking_id
+            refund_amount = result.get('refundAmount', 0) if isinstance(result, dict) else 0
 
             lines = [
                 f"## ❌ Booking Cancelled Successfully",
@@ -1703,8 +1998,82 @@ async def beds24_cancel_booking(params: CancelBookingInput) -> str:
 
             result_str = "\n".join(lines)
         else:
-            result['message'] = 'Booking cancelled successfully'
-            result_str = json.dumps(result, indent=2)
+            response_data = result if isinstance(result, dict) else {}
+            response_data['message'] = 'Booking cancelled successfully'
+            result_str = json.dumps(response_data, indent=2)
+
+        return result_str
+
+    except Exception as e:
+        return _handle_api_error(e)
+
+
+@mcp.tool(
+    name="beds24_delete_booking",
+    annotations={
+        "title": "Delete Booking",
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "idempotentHint": False,
+        "openWorldHint": True
+    }
+)
+async def beds24_delete_booking(params: DeleteBookingInput) -> str:
+    """
+    Permanently delete a booking from Beds24.
+
+    This tool permanently removes a booking from the system. This action cannot be undone.
+    Use with caution - consider using beds24_cancel_booking instead if you want to keep
+    the booking record for reporting purposes.
+
+    Args:
+        params (DeleteBookingInput): Validated input parameters containing:
+            - booking_id (str): The booking ID to delete (required)
+            - response_format (ResponseFormat): Output format (default: markdown)
+
+    Returns:
+        str: Formatted response confirming deletion
+
+    Examples:
+        - Use when: "Permanently delete booking BOOK-12345"
+        - Use when: "Remove booking 67890 completely from the system"
+        - Don't use when: You want to keep booking record (use beds24_cancel_booking instead)
+
+    Error Handling:
+        - Returns "Error: Resource not found" if booking ID doesn't exist
+        - Returns "Error: Cannot delete booking" if booking is protected
+        - Returns formatted deletion confirmation or error message
+    """
+    try:
+        # Make API request - DELETE /bookings?id={booking_id}
+        result = await _make_api_request(
+            f"bookings?id={params.booking_id}",
+            method="DELETE"
+        )
+
+        # Format response
+        if params.response_format == ResponseFormat.MARKDOWN:
+            lines = [
+                f"## 🗑️ Booking Deleted Permanently",
+                "",
+                f"**Booking ID:** {params.booking_id}",
+                "",
+                "⚠️ **Warning:** This booking has been permanently removed from the system and cannot be recovered.",
+                ""
+            ]
+
+            if isinstance(result, dict) and result:
+                lines.append("**Details:**")
+                lines.append(f"```json")
+                lines.append(json.dumps(result, indent=2))
+                lines.append(f"```")
+
+            result_str = "\n".join(lines)
+        else:
+            response_data = result if isinstance(result, dict) else {}
+            response_data['message'] = 'Booking deleted permanently'
+            response_data['booking_id'] = params.booking_id
+            result_str = json.dumps(response_data, indent=2)
 
         return result_str
 
@@ -2122,18 +2491,18 @@ async def beds24_check_availability(params: CheckAvailabilityInput) -> str:
         - Returns formatted availability information or error message
     """
     try:
-        # Build query parameters
-        query_params = {
-            'checkIn': params.check_in,
-            'checkOut': params.check_out,
-            'numberOfGuests': params.number_of_guests
+        # Build query parameters matching Beds24 v2 API
+        query_params: Dict[str, Any] = {
+            'propertyId': params.property_id,
+            'startDate': params.start_date,
+            'endDate': params.end_date,
         }
-        if params.room_type:
-            query_params['roomType'] = params.room_type
+        if params.room_id is not None:
+            query_params['roomId'] = params.room_id
 
         # Make API request
         availability = await _make_api_request(
-            f"inventory/rooms/availability/{params.property_id}",
+            "inventory/rooms/availability",
             params=query_params
         )
 
@@ -2213,19 +2582,25 @@ async def beds24_get_calendar(params: GetCalendarInput) -> str:
         - Returns formatted calendar data or error message
     """
     try:
-        # Build endpoint
-        endpoint = f"inventory/rooms/calendar/{params.property_id}"
-        if params.room_id:
-            endpoint = f"inventory/rooms/calendar/{params.property_id}/{params.room_id}"
-
-        # Build query parameters
-        query_params = {
+        # Build query parameters matching Beds24 v2 API
+        query_params: Dict[str, Any] = {
+            'propertyId': params.property_id,
             'startDate': params.start_date,
-            'endDate': params.end_date
+            'endDate': params.end_date,
+            'includeNumAvail': str(params.include_num_avail).lower(),
+            'includeMinStay': str(params.include_min_stay).lower(),
+            'includeMaxStay': str(params.include_max_stay).lower(),
+            'includeMultiplier': str(params.include_multiplier).lower(),
+            'includeOverride': str(params.include_override).lower(),
+            'includePrices': str(params.include_prices).lower(),
+            'includeLinkedPrices': str(params.include_linked_prices).lower(),
+            'includeChannels': str(params.include_channels).lower(),
         }
+        if params.room_id is not None:
+            query_params['roomId'] = params.room_id
 
         # Make API request
-        calendar_data = await _make_api_request(endpoint, params=query_params)
+        calendar_data = await _make_api_request("inventory/rooms/calendar", params=query_params)
 
         # Format response
         if params.response_format == ResponseFormat.MARKDOWN:
@@ -2314,80 +2689,60 @@ async def beds24_update_calendar(params: UpdateCalendarInput) -> str:
         - Returns formatted update confirmation or error message
     """
     try:
-        # Validate that at least one update field is provided
-        if params.price is None and params.availability is None \
-           and params.minimum_stay is None and params.maximum_stay is None:
-            return "Error: Invalid request - No update values provided. Please specify at least one field to update (price, availability, minimum_stay, or maximum_stay)."
+        # Build Beds24 v2 payload: array of {roomId, calendar: [...]}
+        payload = []
+        for room in params.rooms:
+            calendar_entries = []
+            for entry in room.calendar:
+                cal: Dict[str, Any] = {
+                    "from": entry.from_date,
+                    "to": entry.to_date,
+                }
+                if entry.price1 is not None:
+                    cal["price1"] = entry.price1
+                if entry.price2 is not None:
+                    cal["price2"] = entry.price2
+                if entry.min_stay is not None:
+                    cal["minStay"] = entry.min_stay
+                if entry.max_stay is not None:
+                    cal["maxStay"] = entry.max_stay
+                if entry.num_avail is not None:
+                    cal["numAvail"] = entry.num_avail
+                if entry.override is not None:
+                    cal["override"] = entry.override
+                if entry.channels is not None:
+                    cal["channels"] = entry.channels
+                calendar_entries.append(cal)
 
-        # Build update data
-        update_data = {
-            'date': params.date
-        }
+            payload.append({
+                "roomId": room.room_id,
+                "calendar": calendar_entries,
+            })
 
-        if params.price is not None:
-            update_data['price'] = params.price
-        if params.availability is not None:
-            update_data['available'] = params.availability
-        if params.minimum_stay is not None:
-            update_data['minimumStay'] = params.minimum_stay
-        if params.maximum_stay is not None:
-            update_data['maximumStay'] = params.maximum_stay
-
-        # Build endpoint
-        endpoint = f"inventory/rooms/calendar/{params.property_id}"
-        if params.room_id:
-            endpoint = f"inventory/rooms/calendar/{params.property_id}/{params.room_id}"
-
-        # Make API request
-        result = await _make_api_request(endpoint, method="POST", json_data=update_data)
+        # Make API request — POST array to flat endpoint
+        result = await _make_api_request(
+            "inventory/rooms/calendar",
+            method="POST",
+            json_data=payload
+        )
 
         # Format response
         if params.response_format == ResponseFormat.MARKDOWN:
+            room_summaries = []
+            for room in params.rooms:
+                ranges = [f"{e.from_date} → {e.to_date}" for e in room.calendar]
+                room_summaries.append(f"- Room `{room.room_id}`: {', '.join(ranges)}")
+
             lines = [
-                f"## ✅ Calendar Updated Successfully",
+                "## Calendar Updated Successfully",
                 "",
-                f"**Property ID:** {params.property_id}",
-                f"**Date:** {params.date}",
-                ""
+                f"**Rooms updated:** {len(params.rooms)}",
+                "",
+                *room_summaries,
             ]
-
-            if params.room_id:
-                lines.append(f"**Room ID:** {params.room_id}")
-                lines.append("")
-
-            lines.append("The following fields were updated:")
-            lines.append("")
-
-            if params.price is not None:
-                lines.append(f"- ✅ **Price:** ${params.price}")
-            if params.availability is not None:
-                status = "Available" if params.availability else "Not Available"
-                lines.append(f"- ✅ **Availability:** {status}")
-            if params.minimum_stay is not None:
-                lines.append(f"- ✅ **Minimum Stay:** {params.minimum_stay} nights")
-            if params.maximum_stay is not None:
-                lines.append(f"- ✅ **Maximum Stay:** {params.maximum_stay} nights")
-
             result_str = "\n".join(lines)
         else:
-            updated_fields = {}
-            if params.price is not None:
-                updated_fields['price'] = params.price
-            if params.availability is not None:
-                updated_fields['available'] = params.availability
-            if params.minimum_stay is not None:
-                updated_fields['minimum_stay'] = params.minimum_stay
-            if params.maximum_stay is not None:
-                updated_fields['maximum_stay'] = params.maximum_stay
-
-            response = {
-                "property_id": params.property_id,
-                "room_id": params.room_id,
-                "date": params.date,
-                "updated_fields": updated_fields,
-                "message": "Calendar updated successfully"
-            }
-            result_str = json.dumps(response, indent=2)
+            result_str = json.dumps(result if result else {"message": "Calendar updated successfully"}, indent=2)
 
         return result_str
 

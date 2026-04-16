@@ -1,7 +1,7 @@
 {
   "name": "beds24-mcp",
   "description": "Beds24 Property Management MCP Server - Booking, Property, and Inventory Management",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "transport": {
     "type": "stdio",
     "command": "python3",
@@ -25,7 +25,7 @@
     "resources": false,
     "prompts": false
   },
-  "tool_count": 12,
+  "tool_count": 16,
   "categories": [
     "booking-management",
     "property-management",

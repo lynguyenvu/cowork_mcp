@@ -33,3 +33,14 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Claude & MCP config (local/server-specific)
+.claude/
+.mcp.json
+
+# Database files
+*.db
+*.sqlite
+
+# Test scripts
+**/test-*.py
